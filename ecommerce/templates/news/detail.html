@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block title %}{{ item.title }}{% endblock %}
+{% block content %}
+<h1>{{ item.title }}</h1>
+{% if item.image %}<img src="{{ item.image.url }}" style="width:300px">{% endif %}
+<div>{{ item.body|linebreaks }}</div>
+<p><i>Đăng bởi: {{ item.author }} — {{ item.published_at|date:"d/m/Y H:i" }}</i></p>
+{% endblock %}

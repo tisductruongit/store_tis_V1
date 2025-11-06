@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Sản phẩm{% if active_category %} — {{ active_category.name }}{% endif %}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .btn-light.is-active { border-color: var(--brand); color: var(--brand); }
+
+  /* News slider */
+  .news-slider{position:relative;height:260px;overflow:hidden;border-radius:12px;margin:20px 0}
+  .news-slider a{display:block;height:100%}
+  .news-slide{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .6s}
+  .news-slide.active{opacity:1}
+
+  /* Product slider */
+  .slider{position:relative;height:180px;overflow:hidden;border-radius:12px;background:#f8fafc}
+  .slider .slide{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .5s}
+  .slider .slide.active{opacity:1}
+
+  /* Product grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-top:16px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px;display:flex;flex-direction:column;gap:8px}
+  .price{font-weight:600;color:var(--brand)}
+</style>
+{% endblock %}
+
+{% block content %}
+
+  <!-- News slider -->
+  {% if latest_news %}
+  <section class="news-slider" data-interval="3000">
+    {% for n in latest_news %}
+      {% if n.image %}
+        <a href="{{ n.get_absolute_url }}">
+          <img class="news-slide {% if forloop.first %}active{% endif %}" src="{{ n.image.url }}" alt="{{ n.title }}">
+        </a>
+      {% endif %}
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <!-- Header sản phẩm -->
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <h1 style="margin-right:auto">
+      Danh sách sản phẩm{% if active_category %} — {{ active_category.name }}{% endif %}
+    </h1>
+    {% if request.user.is_staff %}
+      <a href="{% url 'shop:admin_category_create' %}" class="btn btn-light">+ Danh mục</a>
+      <a href="{% url 'shop:admin_product_create' %}" class="btn btn-primary">+ Sản phẩm</a>
+    {% endif %}
+  </div>
+
+  <!-- Breadcrumb -->
+  <nav style="margin-bottom:10px;opacity:.8">
+    <a href="{% url 'shop:product_list' %}">Trang chủ</a>
+    {% if active_category %}
+      › <a href="{% url 'shop:product_by_category' active_category.slug %}">{{ active_category.name }}</a>
+    {% endif %}
+  </nav>
+
+  <!-- Dải danh mục -->
+  <ul style="display:flex;gap:10px;padding:0;list-style:none;margin:14px 0;">
+    <li>
+      <a href="{% url 'shop:product_list' %}"
+         class="btn btn-light {% if not active_category %}is-active{% endif %}">Tất cả</a>
+    </li>
+    {% for c in categories %}
+      <li>
+        <a href="{% url 'shop:product_by_category' c.slug %}"
+           class="btn btn-light {% if active_category and active_category.slug == c.slug %}is-active{% endif %}">
+          {{ c.name }}
+        </a>
+        {% if request.user.is_staff %}
+          <small> · <a href="{% url 'shop:admin_category_update' c.slug %}">Sửa</a></small>
+        {% endif %}
+      </li>
+    {% empty %}
+      <li style="opacity:.7">Chưa có danh mục</li>
+    {% endfor %}
+  </ul>
+
+  <!-- Lưới sản phẩm -->
+  <div class="grid">
+    {% for p in products %}
+      <div class="card">
+        <!-- Slider ảnh sản phẩm -->
+        <div class="slider" data-interval="2500">
+          {% with imgs=p.images.all %}
+            {% if imgs|length %}
+              {% for im in imgs %}
+                <img class="slide {% if forloop.first %}active{% endif %}" src="{{ im.image.url }}" alt="{{ im.alt|default:p.name }}">
+              {% endfor %}
+            {% elif p.image %}
+              <img class="slide active" src="{{ p.image.url }}" alt="{{ p.name }}">
+            {% else %}
+              <img class="slide active" src="{% static 'img/no-image.png' %}" alt="{{ p.name }}">
+            {% endif %}
+          {% endwith %}
+        </div>
+
+        <h3><a href="{{ p.get_absolute_url }}">{{ p.name }}</a></h3>
+        <div class="price">{{ p.price|floatformat:0 }}₫</div>
+        <p style="color:var(--muted);margin:0">
+          Danh mục: <a href="{% url 'shop:product_by_category' p.category.slug %}">{{ p.category.name }}</a>
+        </p>
+        <p style="color:var(--muted);margin:0">Còn lại: {{ p.stock }}</p>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:auto">
+          {% if p.stock|default:0 > 0 %}
+            <a class="btn btn-outline" href="{% url 'cart:cart_add' p.id %}">Thêm vào giỏ</a>
+          {% else %}
+            <button class="btn btn-outline" disabled style="opacity:.6;cursor:not-allowed;">Hết hàng</button>
+          {% endif %}
+          <a class="btn btn-light" href="{{ p.get_absolute_url }}">Chi tiết</a>
+          {% if request.user.is_staff %}
+            <a class="btn btn-light" href="{% url 'shop:admin_product_update' p.id %}">Sửa</a>
+          {% endif %}
+        </div>
+      </div>
+    {% empty %}
+      <p class="mt-3">Chưa có sản phẩm nào để hiển thị.</p>
+    {% endfor %}
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // News slider
+  (function(){
+    const slider = document.querySelector('.news-slider');
+    if(!slider) return;
+    const slides = slider.querySelectorAll('.news-slide');
+    if(slides.length <= 1) return;
+    let i = 0;
+    const ms = parseInt(slider.dataset.interval || '3000', 10);
+    setInterval(() => {
+      slides[i].classList.remove('active');
+      i = (i + 1) % slides.length;
+      slides[i].classList.add('active');
+    }, ms);
+  })();
+
+  // Product image sliders
+  (function(){
+    const sliders = document.querySelectorAll('.slider');
+    const visible = el => {
+      const r = el.getBoundingClientRect();
+      const vw = innerWidth || document.documentElement.clientWidth;
+      const vh = innerHeight || document.documentElement.clientHeight;
+      return r.bottom > 0 && r.right > 0 && r.left < vw && r.top < vh;
+    };
+    sliders.forEach(sl => {
+      const slides = sl.querySelectorAll('.slide');
+      if (slides.length <= 1) return;
+      let i = 0;
+      const ms = parseInt(sl.dataset.interval || '2500', 10);
+      setInterval(() => {
+        if (!visible(sl)) return;
+        slides[i].classList.remove('active');
+        i = (i + 1) % slides.length;
+        slides[i].classList.add('active');
+      }, ms);
+    });
+  })();
+</script>
+{% endblock %}

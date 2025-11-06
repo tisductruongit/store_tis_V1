@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Xóa danh mục{% endblock %}
+
+{% block content %}
+  <h1>Xóa danh mục</h1>
+  <p>Bạn có chắc muốn xóa danh mục <b>{{ category.name }}</b>?</p>
+
+  {% if product_count %}
+    <p class="alert alert-danger">
+      Danh mục đang có {{ product_count }} sản phẩm. Xóa sẽ xóa <b>toàn bộ</b> các sản phẩm này
+      (do cấu hình on_delete=CASCADE).
+    </p>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary">Xóa</button>
+    <a href="{% url 'shop:product_list' %}" class="btn btn-outline">Hủy</a>
+  </form>
+{% endblock %}

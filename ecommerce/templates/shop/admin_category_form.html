@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{% if is_edit %}Sửa sản phẩm{% else %}Thêm danh mục{% endif %}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:768px){.form-row{grid-template-columns:1fr}}
+  .field{margin-bottom:12px}
+  .field label{display:block;margin-bottom:6px;font-weight:600}
+  .errors{color:#dc2626;margin:8px 0 0 0}
+  .alert-error{border:1px solid #ef4444;color:#ef4444;padding:10px;border-radius:10px;margin:10px 0}
+  .thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .thumbs img{width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+  .preview-main{width:220px;height:220px;object-fit:cover;border-radius:12px;border:1px solid var(--line);background:#f8fafc}
+  small.muted{color:var(--muted)}
+</style>
+{% endblock %}
+
+{% block content %}
+  <h1>{% if is_edit %}Sửa sản phẩm{% else %}Thêm danh mục{% endif %}</h1>
+
+  {% if form.errors or images_form.errors %}
+    <div class="alert-error">
+      <b>Vui lòng kiểm tra các lỗi sau:</b>
+      <ul style="margin:6px 0 0 18px">
+        {% for field in form %}
+          {% for err in field.errors %}
+            <li><b>{{ field.label }}:</b> {{ err }}</li>
+          {% endfor %}
+        {% endfor %}
+        {% for err in form.non_field_errors %}<li>{{ err }}</li>{% endfor %}
+        {% for err in images_form.non_field_errors %}<li>{{ err }}</li>{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="mt-3">
+    {% csrf_token %}
+
+    <div class="form-row">
+      <div>
+        <div class="field">
+          {{ form.category.label_tag }}{{ form.category }}
+          {% for e in form.category.errors %}<div class="errors">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="field">
+          {{ form.name.label_tag }}{{ form.name }}
+          {% for e in form.name.errors %}<div class="errors">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="field">
+          {{ form.slug.label_tag }}{{ form.slug }}
+          <small class="muted">Để trống sẽ tự sinh; nếu trùng sẽ tự thêm -1, -2…</small>
+          {% for e in form.slug.errors %}<div class="errors">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="field">
+          {{ form.price.label_tag }}{{ form.price }}
+          {% for e in form.price.errors %}<div class="errors">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="field">
+          {{ form.stock.label_tag }}{{ form.stock }}
+          {% for e in form.stock.errors %}<div class="errors">{{ e }}</div>{% endfor %}
+        </div>
+      </div>
+
+      <div>
+        <div class="field">
+          <label>Ảnh đại diện</label>
+          {{ form.image }}
+          {% for e in form.image.errors %}<div class="errors">{{ e }}</div>{% endfor %}
+          <div class="mt-2"><img id="mainPreview" class="preview-main" alt=""></div>
+        </div>
+
+        <div class="field">
+          <label>Ảnh bổ sung (có thể chọn nhiều)</label>
+          {{ images_form.images }}
+          {% for e in images_form.images.errors %}<div class="errors">{{ e }}</div>{% endfor %}
+          <div id="extraThumbs" class="thumbs"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      {{ form.description.label_tag }}{{ form.description }}
+      {% for e in form.description.errors %}<div class="errors">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button type="submit" class="btn btn-primary">{% if is_edit %}Cập nhật{% else %}Lưu{% endif %}</button>
+      <a href="{% url 'shop:product_list' %}" class="btn btn-outline">Hủy</a>
+      {% if is_edit %}
+        <a href="{% url 'shop:admin_product_delete' product.id %}" class="btn btn-light">Xoá…</a>
+      {% endif %}
+    </div>
+  </form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // ---- Auto-slug từ Name (nếu slug đang trống hoặc chưa sửa tay) ----
+  (function(){
+    const nameInput = document.getElementById('id_name');
+    const slugInput = document.getElementById('id_slug');
+    if(!nameInput || !slugInput) return;
+
+    let slugTouched = false;
+    slugInput.addEventListener('input', ()=> { slugTouched = true; });
+
+    function toSlug(str){
+      if(!str) return '';
+      return str.normalize('NFD')
+        .replace(/[\u0300-\u036f]/g,'')   // bỏ dấu
+        .replace(/[^a-zA-Z0-9]+/g,'-')
+        .replace(/^-+|-+$/g,'')
+        .toLowerCase();
+    }
+
+    nameInput.addEventListener('input', ()=>{
+      if(!slugTouched || !slugInput.value){
+        slugInput.value = toSlug(nameInput.value);
+      }
+    });
+  })();
+
+  // ---- Preview ảnh đại diện ----
+  (function(){
+    const input = document.getElementById('id_image');
+    const preview = document.getElementById('mainPreview');
+    if(!input || !preview) return;
+
+    input.addEventListener('change', ()=>{
+      const f = input.files && input.files[0];
+      if(!f){ preview.src=''; preview.alt=''; return; }
+      const url = URL.createObjectURL(f);
+      preview.src = url;
+      preview.alt = f.name;
+    });
+  })();
+
+  // ---- Preview ảnh bổ sung (multiple) ----
+  (function(){
+    const input = document.getElementById('id_images'); // từ ProductImagesForm
+    const box = document.getElementById('extraThumbs');
+    if(!input || !box) return;
+
+    input.addEventListener('change', ()=>{
+      box.innerHTML = '';
+      const files = Array.from(input.files || []);
+      files.forEach(f=>{
+        const url = URL.createObjectURL(f);
+        const img = document.createElement('img');
+        img.src = url; img.alt = f.name;
+        box.appendChild(img);
+      });
+    });
+  })();
+</script>
+{% endblock %}

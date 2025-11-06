@@ -1,0 +1,188 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Cửa hàng{% endblock %}</title>
+
+  <link rel="stylesheet" href="{% static 'style.css' %}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" referrerpolicy="no-referrer" />
+
+  <style>
+    :root{--brand:#e11d48;--brand-600:#dc2626;--text:#111827;--muted:#6b7280;--bg:#fff;--line:#e5e7eb;--shadow:0 2px 10px rgba(0,0,0,.04)}
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    a{color:inherit;text-decoration:none}
+    img{max-width:100%;display:block}
+    .container{max-width:1200px;margin:0 auto;padding:0 16px}
+    header.site-header{border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:50}
+    .topbar{display:flex;align-items:center;gap:16px;justify-content:space-between;padding:10px 0}
+    .brand{display:flex;align-items:center;gap:10px}
+    .brand img{height:42px;width:auto}
+    .brand .name{font-weight:800;letter-spacing:.2px}
+    .brand .name span{color:var(--brand)}
+
+    /* Search */
+    .searchbar{flex:1;max-width:560px}
+    .search-wrapper{position:relative;display:flex;align-items:center}
+    .search-wrapper input[type="search"]{
+      flex:1;padding:10px 12px 10px 36px;border:1px solid var(--line);border-radius:12px;outline:none
+    }
+    .search-wrapper input[type="search"]:focus{
+      border-color:var(--brand);box-shadow:0 0 0 2px rgba(225,29,72,.15)
+    }
+    .search-icon{position:absolute;left:12px;color:var(--muted);font-size:14px}
+    .clear-btn{
+      position:absolute;right:8px;background:none;border:none;cursor:pointer;padding:6px;border-radius:50%;color:var(--muted)
+    }
+    .clear-btn:hover{background:rgba(0,0,0,.05)}
+
+    /* Buttons & nav */
+    nav.nav{display:flex;gap:12px;flex-wrap:wrap;padding:8px 0 12px}
+    .nav a{padding:8px 10px;border-radius:10px;border:1px solid transparent}
+    .nav a:hover{background:#fff;border-color:var(--line);box-shadow:var(--shadow)}
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:#fff;cursor:pointer}
+    .btn-primary{background:var(--brand);border-color:var(--brand);color:#fff}
+    .btn-primary:hover{background:var(--brand-600);border-color:var(--brand-600)}
+    .hello{margin-right:8px}
+
+    /* Dropdown Tools */
+    .dropdown{position:relative}
+    .dropdown-toggle{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+    .dropdown-menu{
+      position:absolute;top:calc(100% + 8px);left:0;min-width:220px;background:#fff;border:1px solid var(--line);
+      border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:8px;display:none;z-index:100
+    }
+    .dropdown.open .dropdown-menu{display:block}
+    .menu-title{font-size:12px;text-transform:uppercase;color:var(--muted);margin:6px 0}
+    .menu-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px}
+    .menu-item:hover{background:#f9fafb}
+
+    main{padding:18px 0}
+    .messages{margin:12px 0;display:grid;gap:8px}
+    .alert{padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:#fff}
+
+    footer.site-footer{border-top:1px solid var(--line);padding:24px 0;margin-top:40px;background:#fff;color:var(--muted);font-size:13px}
+    .footergrid{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+
+    @media (max-width:768px){
+      .topbar{flex-wrap:wrap;gap:8px}
+      .searchbar{order:3;width:100%}
+      .footergrid{grid-template-columns:1fr}
+    }
+  </style>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+<header class="site-header">
+  <div class="container">
+    <div class="topbar">
+      <!-- Logo -->
+      <a href="{% url 'shop:product_list' %}" class="brand" aria-label="Trang chủ">
+        <img src="{% static 'img/tis-logo.png' %}" alt="Logo">
+        <div class="name">TIS <span>Store</span></div>
+      </a>
+
+      <!-- Search -->
+      <form class="searchbar" action="{% url 'shop:product_list' %}" method="get" role="search">
+        <div class="search-wrapper">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="search" name="q" value="{{ request.GET.q }}" placeholder="Tìm sản phẩm…" aria-label="Tìm sản phẩm">
+          {% if request.GET.q %}
+          <button type="button" class="clear-btn" onclick="this.previousElementSibling.value=''; this.form.submit();" aria-label="Xóa tìm kiếm">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+          {% endif %}
+        </div>
+      </form>
+
+      <!-- Auth -->
+      <div style="display:flex;align-items:center;gap:8px">
+        {% if request.user.is_authenticated %}
+          <span class="hello">Xin chào, <strong>{{ request.user.username }}</strong></span>
+          <a class="btn" href="{% url 'accounts:profile' %}"><i class="fa-regular fa-user"></i> Hồ sơ</a>
+          <form action="{% url 'accounts:logout' %}" method="post" style="margin:0">
+            {% csrf_token %}
+            <button class="btn" type="submit"><i class="fa-solid fa-right-from-bracket"></i> Đăng xuất</button>
+          </form>
+        {% else %}
+          <a class="btn" href="{% url 'accounts:login' %}"><i class="fa-regular fa-user"></i> Đăng nhập</a>
+          <a class="btn btn-primary" href="{% url 'accounts:register' %}"><i class="fa-regular fa-id-card"></i> Đăng ký</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="nav">
+      <a href="{% url 'shop:product_list' %}"><i class="fa-solid fa-house"></i> Trang chủ</a>
+
+      {% if request.user.is_staff %}
+      <div class="dropdown" id="toolsDropdown">
+        <div class="dropdown-toggle"><i class="fa-solid fa-screwdriver-wrench"></i> Tools <i class="fa-solid fa-caret-down"></i></div>
+        <div class="dropdown-menu">
+          <div class="menu-title">Sản phẩm</div>
+          <a class="menu-item" href="{% url 'shop:admin_product_create' %}">📦 Đăng sản phẩm</a>
+          <a class="menu-item" href="{% url 'shop:admin_category_create' %}">🗂️ Đăng danh mục</a>
+
+          <div class="menu-title">Account</div>
+          <a class="menu-item" href="{% url 'accounts:admin_user_list' %}">👥 Quản lý tài khoản</a>
+
+          <div class="menu-title">News</div>
+          <a class="menu-item" href="{% url 'news:admin_create' %}">📰 Đăng News</a>
+          <a class="menu-item" href="{% url 'news:list' %}">📑 Danh sách News</a>
+        </div>
+
+      </div>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+
+<main class="container">
+  {% if messages %}
+    <div class="messages" id="messages">
+      {% for message in messages %}
+        <div class="alert {{ message.tags|default:'' }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="site-footer">
+  <div class="container footergrid">
+    <div>© {% now "Y" %} TIS Store. All rights reserved.</div>
+    <div style="text-align:right">
+      <a href="{% url 'shop:product_list' %}">Trang chủ</a>
+      {% if request.user.is_staff %} · <a href="{% url 'admin:index' %}">Admin</a>{% endif %}
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function(){
+    // Ẩn messages sau 3s
+    const box = document.getElementById('messages');
+    if(box){
+      setTimeout(()=>{ box.style.transition='opacity .4s'; box.style.opacity='0'; setTimeout(()=>box.remove(),400); }, 3000);
+    }
+    // Dropdown Tools
+    const dd = document.getElementById("toolsDropdown");
+    if(dd){
+      const toggle = dd.querySelector(".dropdown-toggle");
+      toggle.addEventListener("click", e=>{
+        e.stopPropagation();
+        dd.classList.toggle("open");
+      });
+      document.addEventListener("click", ()=>dd.classList.remove("open"));
+      window.addEventListener("keydown", e=>{ if(e.key==="Escape") dd.classList.remove("open"); });
+    }
+  })();
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

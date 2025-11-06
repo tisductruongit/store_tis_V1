@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Quản lý người dùng{% endblock %}
+{% block content %}
+<h1>Quản lý người dùng</h1>
+
+<form method="get" style="margin:12px 0;display:flex;gap:8px">
+  <input type="text" name="q" value="{{ q }}" placeholder="Tìm username, email, họ tên, SĐT"
+         style="flex:1;padding:10px;border:1px solid #e5e7eb;border-radius:10px">
+  <button class="btn btn-primary" type="submit">Tìm</button>
+</form>
+
+<div class="card" style="padding:0;overflow:auto">
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#fafafa;border-bottom:1px solid #eee">
+        <th style="text-align:left;padding:10px">User</th>
+        <th style="text-align:left;padding:10px">Email</th>
+        <th style="text-align:left;padding:10px">Họ tên</th>
+        <th style="text-align:left;padding:10px">SĐT</th>
+        <th style="text-align:left;padding:10px">Staff</th>
+        <th style="text-align:left;padding:10px">Trạng thái</th>
+        <th style="padding:10px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr style="border-top:1px solid #f1f5f9">
+        <td style="padding:10px">
+          <div style="display:flex;align-items:center;gap:8px">
+            {% if u.profile.avatar %}
+              <img src="{{ u.profile.avatar.url }}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid #eee">
+            {% else %}
+              <img src="{% static 'img/placeholder-avatar.png' %}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid #eee">
+            {% endif %}
+            <b>{{ u.username }}</b>
+          </div>
+        </td>
+        <td style="padding:10px">{{ u.email }}</td>
+        <td style="padding:10px">{{ u.first_name }} {{ u.last_name }}</td>
+        <td style="padding:10px">{{ u.profile.phone|default:"—" }}</td>
+        <td style="padding:10px">{{ u.is_staff|yesno:"Có,Không" }}</td>
+        <td style="padding:10px">
+          <span class="badge {% if u.is_active %}success{% else %}danger{% endif %}">
+            {% if u.is_active %}Hoạt động{% else %}Khoá{% endif %}
+          </span>
+        </td>
+        <td style="padding:10px;white-space:nowrap">
+          <a class="btn btn-secondary" href="{% url 'accounts:admin_user_edit' u.pk %}">Sửa</a>
+          <form action="{% url 'accounts:admin_user_toggle_active' u.pk %}" method="post" style="display:inline">
+            {% csrf_token %}
+            <button class="btn" type="submit">{% if u.is_active %}Khoá{% else %}Mở khoá{% endif %}</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="padding:16px;color:#6b7280">Không có người dùng nào.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if users.paginator.num_pages > 1 %}
+<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
+  {% for p in users.paginator.page_range %}
+    {% if p == users.number %}
+      <span class="btn btn-primary">{{ p }}</span>
+    {% else %}
+      <a class="btn" href="?q={{ q }}&page={{ p }}">{{ p }}</a>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

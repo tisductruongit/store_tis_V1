@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ product.name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  :root{
+    --red:#e11d2a;
+    --line:#e5e7eb;
+    --muted:#6b7280;
+    --anim-dur:420ms;
+    --anim-ease:cubic-bezier(.2,.6,.2,1);
+  }
+  .wrap{max-width:1200px;margin:0 auto}
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px}
+  @media (max-width:1000px){.grid{grid-template-columns:1fr}}
+
+  /* ===== GALLERY ===== */
+  .gallery h1{margin:0 0 8px}
+  .main{
+    position:relative; width:100%; aspect-ratio:1/1;
+    border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#f8fafc;
+    isolation:isolate;
+  }
+  .main img{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+    opacity:0; visibility:hidden; transform:scale(1.02);
+    transition:
+      opacity var(--anim-dur) var(--anim-ease),
+      visibility var(--anim-dur) step-end,
+      transform var(--anim-dur) var(--anim-ease);
+    will-change:opacity,transform;
+  }
+  .main img.active{opacity:1; visibility:visible; transform:scale(1); z-index:1}
+
+  .thumbs{display:flex;gap:10px;overflow:auto;padding:10px 4px}
+  .thumbs img{
+    width:72px;height:72px;object-fit:cover;border-radius:8px;border:2px solid transparent;
+    background:#f3f4f6;cursor:pointer;flex:0 0 auto;
+    transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+  .thumbs img:hover{transform:translateY(-2px);box-shadow:0 3px 10px rgba(0,0,0,.08)}
+  .thumbs img.active{border-color:var(--red)}
+
+  /* ===== DESCRIPTION ===== */
+  .desc{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff}
+  .desc h3{margin:0 0 8px}
+  .desc .body{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;color:#111827}
+
+  /* ===== BUY BOX ===== */
+  .buybox{position:sticky;top:12px;border:1px solid var(--line);border-radius:12px;padding:16px;background:#fff;height:max-content}
+  .price{font-size:24px;font-weight:800;color:var(--red)}
+  .price .old{font-size:14px;color:var(--muted);text-decoration:line-through;margin-left:8px}
+  .meta{color:var(--muted);font-size:14px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;cursor:pointer}
+  .btn-primary{background:var(--red);border-color:var(--red);color:#fff}
+  .btn-block{width:100%}
+
+  @media (prefers-reduced-motion:reduce){
+    .main img,.thumbs img{transition:none;transform:none}
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="meta" style="margin-bottom:10px">
+    <a href="{% url 'shop:product_list' %}">Trang chủ</a>
+    {% if product.category %} / <a href="{% url 'shop:product_by_category' product.category.slug %}">{{ product.category.name }}</a>{% endif %}
+    / <span>{{ product.name }}</span>
+  </div>
+
+  <div class="grid">
+    <!-- LEFT: Gallery + Mô tả chi tiết -->
+    <section class="gallery">
+      <h1>{{ product.name }}</h1>
+
+      {% with images=product.images.all %}
+        <div class="main" id="slider" data-interval="3500">
+          {% if images %}
+            {% for im in images %}
+              <img class="{% if forloop.first %}active{% endif %}"
+                   src="{{ im.image.url }}" alt="{{ im.alt|default:product.name }}">
+            {% endfor %}
+          {% elif product.image %}
+            <img class="active" src="{{ product.image.url }}" alt="{{ product.name }}">
+          {% else %}
+            <img class="active" src="{% static 'img/no-image.png' %}" alt="{{ product.name }}">
+          {% endif %}
+        </div>
+
+        <div class="thumbs" id="thumbs">
+          {% if images %}
+            {% for im in images %}
+              <img class="{% if forloop.first %}active{% endif %}"
+                   data-idx="{{ forloop.counter0 }}" src="{{ im.image.url }}"
+                   alt="{{ im.alt|default:product.name }}">
+            {% endfor %}
+          {% elif product.image %}
+            <img class="active" src="{{ product.image.url }}" alt="{{ product.name }}">
+          {% else %}
+            <img class="active" src="{% static 'img/no-image.png' %}" alt="{{ product.name }}">
+          {% endif %}
+        </div>
+      {% endwith %}
+
+      <!-- MÔ TẢ CHI TIẾT đặt dưới khu vực hình -->
+      <div class="desc">
+        <h3>Mô tả chi tiết</h3>
+        <div class="body">{{ product.description|linebreaks }}</div>
+      </div>
+    </section>
+
+    <!-- RIGHT: Sticky buy box -->
+    <aside class="buybox">
+      <div class="price">
+        {{ product.price|floatformat:0 }}₫
+        {% if product.compare_price %}<span class="old">{{ product.compare_price|floatformat:0 }}₫</span>{% endif %}
+      </div>
+      {% if product.category %}
+        <div class="meta" style="margin-top:4px">Danh mục:
+          <a href="{% url 'shop:product_by_category' product.category.slug %}">{{ product.category.name }}</a>
+        </div>
+      {% endif %}
+      <div class="meta" style="margin-top:6px">
+        {% if product.stock > 0 %}Còn lại: {{ product.stock }}{% else %}<span style="color:#dc2626">Hết hàng</span>{% endif %}
+      </div>
+
+      <div style="margin-top:14px;display:flex;gap:8px">
+        <button class="btn btn-primary btn-block">Mua ngay</button>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button class="btn btn-block">Thêm vào giỏ</button>
+        <button class="btn btn-primary btn-block">Tư vấn ngay</button>
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  // Slider tự động + thumbnail + pause on hover
+  const slider = document.getElementById('slider');
+  if(!slider) return;
+
+  const slides = Array.from(slider.querySelectorAll('img'));
+  const thumbsBox = document.getElementById('thumbs');
+  const thumbs = thumbsBox ? Array.from(thumbsBox.querySelectorAll('img')) : [];
+  if(slides.length <= 1) return;
+
+  let idx = slides.findIndex(el => el.classList.contains('active'));
+  if(idx < 0) idx = 0;
+  const interval = parseInt(slider.dataset.interval || '3500', 10);
+
+  function show(i){
+    slides[idx].classList.remove('active');
+    if(thumbs[idx]) thumbs[idx].classList.remove('active');
+    idx = (i + slides.length) % slides.length;
+    slides[idx].classList.add('active');
+    if(thumbs[idx]) thumbs[idx].classList.add('active');
+  }
+
+  let timer = setInterval(() => show(idx + 1), interval);
+
+  slider.addEventListener('mouseenter', () => clearInterval(timer));
+  slider.addEventListener('mouseleave', () => { timer = setInterval(() => show(idx + 1), interval); });
+
+  if(thumbs.length){
+    thumbs.forEach((t, i) => {
+      t.addEventListener('click', () => {
+        clearInterval(timer);
+        show(i);
+        timer = setInterval(() => show(idx + 1), interval);
+      });
+    });
+  }
+})();
+</script>
+{% endblock %}

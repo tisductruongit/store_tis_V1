@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Đăng ký{% endblock %}
+{% block content %}
+<h1>Đăng ký</h1>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="alert error">
+      {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+    </div>
+  {% endif %}
+
+  <p>
+    {{ form.username.label_tag }} {{ form.username }}
+    {% for e in form.username.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </p>
+  <p>
+    {{ form.email.label_tag }} {{ form.email }}
+    {% for e in form.email.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </p>
+  {% if form.phone %}
+  <p>
+    {{ form.phone.label_tag }} {{ form.phone }}
+    {% for e in form.phone.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </p>
+  {% endif %}
+  <p>
+    {{ form.password.label_tag }} {{ form.password }}
+    {% for e in form.password.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </p>
+  <p>
+    {{ form.password2.label_tag }} {{ form.password2 }}
+    {% for e in form.password2.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </p>
+
+  <button class="btn btn-primary" type="submit">Tạo tài khoản</button>
+</form>
+
+<style>
+  .alert.error{margin:8px 0;padding:10px;border-radius:10px;border:1px solid #fecaca;background:#fee2e2;color:#991b1b}
+  .err{display:block;color:#dc2626;font-size:12px;margin-top:4px}
+</style>
+{% endblock %}

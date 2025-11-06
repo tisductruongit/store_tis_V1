@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Sửa người dùng{% endblock %}
+{% block content %}
+<a href="{% url 'accounts:admin_user_list' %}" class="btn">&larr; Quay lại</a>
+
+<h1>Sửa người dùng: {{ obj.username }}</h1>
+
+<div style="display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start">
+  <div class="card" style="padding:16px">
+    <h3>Hồ sơ</h3>
+    <div style="margin:8px 0">
+      {% if obj.profile.avatar %}
+        <img src="{{ obj.profile.avatar.url }}" style="width:160px;height:160px;border-radius:12px;object-fit:cover;border:1px solid #eee">
+      {% else %}
+        <img src="{% static 'img/placeholder-avatar.png' %}" style="width:160px;height:160px;border-radius:12px;object-fit:cover;border:1px solid #eee">
+      {% endif %}
+    </div>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <fieldset style="border:0;margin:0;padding:0">
+        <legend style="font-weight:600;margin:6px 0">Thông tin tài khoản</legend>
+        {{ uf.non_field_errors }}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label for="{{ uf.first_name.id_for_label }}">Họ</label>
+            {{ uf.first_name }}
+            {% for e in uf.first_name.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
+          <div>
+            <label for="{{ uf.last_name.id_for_label }}">Tên</label>
+            {{ uf.last_name }}
+            {% for e in uf.last_name.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <label for="{{ uf.email.id_for_label }}">Email</label>
+          {{ uf.email }}
+          {% for e in uf.email.errors %}<div class="err">{{ e }}</div>{% endfor %}
+        </div>
+        <div style="display:flex;gap:16px;margin-top:8px">
+          <label>{{ uf.is_active }} Hoạt động</label>
+          {% if uf.fields.is_staff %}<label>{{ uf.is_staff }} Quyền Staff</label>{% endif %}
+        </div>
+      </fieldset>
+
+      <fieldset style="border:0;margin-top:12px;padding:0">
+        <legend style="font-weight:600;margin:6px 0">Hồ sơ mở rộng</legend>
+        {{ pf.non_field_errors }}
+        <div style="margin-top:8px">
+          <label for="{{ pf.phone.id_for_label }}">Số điện thoại</label>
+          {{ pf.phone }}
+          {% for e in pf.phone.errors %}<div class="err">{{ e }}</div>{% endfor %}
+        </div>
+        <div style="margin-top:8px">
+          <label for="{{ pf.avatar.id_for_label }}">Avatar</label>
+          {{ pf.avatar }}
+          {% for e in pf.avatar.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          <small class="help">Chọn ảnh mới để thay thế</small>
+        </div>
+      </fieldset>
+
+      <div style="margin-top:12px">
+        <button class="btn btn-primary" type="submit">Lưu</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card" style="padding:16px">
+    <h3>Thông tin hiện tại</h3>
+    <p><b>Username:</b> {{ obj.username }}</p>
+    <p><b>Email:</b> {{ obj.email }}</p>
+    <p><b>Họ tên:</b> {{ obj.first_name }} {{ obj.last_name }}</p>
+    <p><b>SĐT:</b> {{ obj.profile.phone|default:"—" }}</p>
+    <p><b>Nhóm quyền:</b> {% if obj.is_superuser %}Superuser, {% endif %}{% if obj.is_staff %}Staff{% else %}User{% endif %}</p>
+    <p><b>Trạng thái:</b> {% if obj.is_active %}Hoạt động{% else %}Khoá{% endif %}</p>
+  </div>
+</div>
+
+<style>
+  .err{color:#dc2626;font-size:12px;margin-top:4px}
+  .help{color:#6b7280;font-size:12px}
+  .card{background:#fff;border:1px solid #eee;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+</style>
+{% endblock %}

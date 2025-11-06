@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Hồ sơ{% endblock %}
+
+{% block content %}
+<h1 class="animate__animated animate__fadeInDown">Hồ sơ</h1>
+
+<style>
+  .err{color:#dc2626;font-size:12px;margin-top:4px}
+  .help{color:#6b7280;font-size:12px}
+  .card{background:#fff;border:1px solid #eee;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+  .avatar-wrap{
+    position:relative;width:160px;height:160px;border-radius:12px;overflow:hidden;
+    border:2px solid var(--brand, #e11d48); cursor:pointer; display:inline-block;
+  }
+  .avatar-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+  .avatar-overlay{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.35);color:#fff;font-weight:600;font-size:14px;
+    opacity:0;transition:opacity .25s ease;
+  }
+  .avatar-wrap:hover .avatar-overlay{opacity:1}
+  /* Ẩn input avatar mặc định */
+  #id_avatar{display:none}
+</style>
+
+<div style="display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start">
+  <!-- Cột trái: Avatar + form + Gallery -->
+  <div>
+    <div class="card" style="padding:16px">
+      <h3><i class="fas fa-user-circle"></i> Ảnh đại diện</h3>
+
+      <!-- Bấm vào avatar để chọn ảnh -->
+      <label for="id_avatar" class="avatar-wrap" title="Nhấn để đổi ảnh">
+        <img id="avatarPreview"
+             src="{% if request.user.profile.avatar %}{{ request.user.profile.avatar.url }}{% else %}{% static 'img/placeholder-avatar.png' %}{% endif %}"
+             alt="avatar">
+        <span class="avatar-overlay"><i class="fas fa-camera" style="margin-right:6px"></i>Đổi ảnh</span>
+      </label>
+
+      <form method="post" enctype="multipart/form-data" style="margin-top:12px" novalidate>
+        {% csrf_token %}
+
+        {% if name_form.non_field_errors %}
+          <div class="err">{{ name_form.non_field_errors }}</div>
+        {% endif %}
+        {% if avatar_form.non_field_errors %}
+          <div class="err">{{ avatar_form.non_field_errors }}</div>
+        {% endif %}
+        {% if photos_form.non_field_errors %}
+          <div class="err">{{ photos_form.non_field_errors }}</div>
+        {% endif %}
+
+        <!-- Họ & Tên -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label for="{{ name_form.first_name.id_for_label }}">Họ</label>
+            {{ name_form.first_name }}
+            {% for e in name_form.first_name.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
+          <div>
+            <label for="{{ name_form.last_name.id_for_label }}">Tên</label>
+            {{ name_form.last_name }}
+            {% for e in name_form.last_name.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
+        </div>
+
+        <!-- Input avatar (ẩn bằng CSS; vẫn nằm trong form để gửi file) -->
+        {{ avatar_form.avatar }}
+        {% for e in avatar_form.avatar.errors %}<div class="err">{{ e }}</div>{% endfor %}
+        <small class="help">Chấp nhận JPG/PNG, ≤ 5MB</small>
+
+        <!-- Thêm nhiều ảnh -->
+        <h4 style="margin-top:14px"><i class="fas fa-images"></i> Thêm ảnh vào thư viện</h4>
+        {{ photos_form.photos }}
+        {% for e in photos_form.photos.errors %}<div class="err">{{ e }}</div>{% endfor %}
+        <small class="help">Giữ Ctrl (hoặc Cmd trên macOS) để chọn nhiều ảnh</small>
+
+        <div style="margin-top:12px">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Lưu</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card" style="padding:16px;margin-top:16px">
+      <h3><i class="fas fa-photo-video"></i> Thư viện ảnh</h3>
+      {% if photos %}
+        <div style="display:flex;flex-wrap:wrap;gap:10px">
+          {% for p in photos %}
+            <div style="position:relative">
+              <img src="{{ p.image.url }}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;border:2px solid #eee">
+              <a href="{% url 'accounts:photo_delete' p.pk %}"
+                 style="position:absolute;top:6px;right:6px;background:#fff;border:1px solid #eee;padding:2px 6px;border-radius:6px;font-size:12px;color:#111;box-shadow:0 2px 8px rgba(0,0,0,.08)"
+                 title="Xóa ảnh">
+                <i class="fas fa-trash-alt"></i>
+              </a>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="help">Chưa có ảnh nào.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Cột phải: Thông tin read-only -->
+  <div class="card" style="padding:16px">
+    <h3 class="btn btn-primary">Thông tin tài khoản</h3>
+
+    <div class="help" style="margin:6px 0">Tên đăng nhập</div>
+    <div><b>{{ request.user.username }}</b></div>
+
+    <div class="help" style="margin:12px 0 6px">Email</div>
+    <div><b>{{ email|default:"—" }}</b></div>
+
+    <div class="help" style="margin:12px 0 6px">SĐT</div>
+    <div><b>{{ phone|default:"—" }}</b></div>
+
+    <p class="help" style="margin-top:12px">Nếu bạn cần đổi email/SĐT, vui lòng liên hệ quản trị viên.</p>
+  </div>
+</div>
+
+<script>
+  // Preview ảnh đại diện khi người dùng chọn file
+  (function(){
+    const input = document.getElementById('id_avatar');
+    const img   = document.getElementById('avatarPreview');
+    if (!input || !img) return;
+    input.addEventListener('change', function(){
+      const file = this.files && this.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      img.src = url;
+      img.onload = () => URL.revokeObjectURL(url);
+    });
+  })();
+</script>
+{% endblock %}
