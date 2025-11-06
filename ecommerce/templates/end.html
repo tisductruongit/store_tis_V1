@@ -1,0 +1,133 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}Website{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  {% block extra_head %}{% endblock %}
+  <style>
+    footer {
+      background: #f9fafb;
+      padding: 40px 20px;
+      font-size: 14px;
+      color: #111;
+      margin-top: 40px;
+    }
+    .footer-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+      gap: 20px;
+    }
+    .footer-logo img {
+      max-width: 160px;
+      margin-bottom: 10px;
+    }
+    .footer-col h4 {
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .footer-col ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .footer-col ul li {
+      margin: 6px 0;
+    }
+    .footer-col ul li a {
+      color: #333;
+      text-decoration: none;
+    }
+    .footer-col ul li a:hover {
+      text-decoration: underline;
+    }
+    .footer-contact p {
+      margin: 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .footer-bottom {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 13px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  {% block content %}{% endblock %}
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-container">
+      <!-- Logo + địa chỉ -->
+      <div class="footer-logo">
+        <img src="{% static 'img/tis-logo.png' %}" alt="Logo">
+        <strong>TIS VIETNAM INSURANCE BROKER</strong>
+        <div class="footer-contact">
+          <p><strong>Address:</strong></p>
+          <p>Suite 1101, 11th Floor, The Grace Tower</p>
+          <p>71 Hoang Van Thai, Tan My Ward, Ho Chi Minh City, Vietnam</p>
+          <p><strong>Email:</strong> communication@tisbroker.com</p>
+          <p><strong>Tel:</strong> 028.54 171 181</p>
+        </div>
+      </div>
+
+      <!-- Services Delivery -->
+      <div class="footer-col">
+        <h4>Services Delivery</h4>
+        <ul>
+          <li><a href="#">Risk Analytics</a></li>
+          <li><a href="#">Risk Consulting</a></li>
+          <li><a href="#">Loss Prevention</a></li>
+          <li><a href="#">Claim Services</a></li>
+        </ul>
+      </div>
+
+      <!-- Expertise -->
+      <div class="footer-col">
+        <h4>Expertise</h4>
+        <ul>
+          <li><a href="#">Construction</a></li>
+          <li><a href="#">Manufacturing</a></li>
+          <li><a href="#">Servicing</a></li>
+        </ul>
+      </div>
+
+      <!-- Risks Solutions -->
+      <div class="footer-col">
+        <h4>Risks Solutions</h4>
+        <ul>
+          <li><strong>I. Business & Asset Protection</strong></li>
+          <li><a href="#">Engineering Insurance</a></li>
+          <li><a href="#">Property Insurance</a></li>
+          <li><a href="#">Marine and Transportation</a></li>
+          <li><strong>II. Health & Accident Insurance</strong></li>
+          <li><a href="#">Health Insurance</a></li>
+          <li><a href="#">Personal Accident Insurance</a></li>
+        </ul>
+      </div>
+
+      <!-- Contact links -->
+      <div class="footer-col">
+        <h4>Contact</h4>
+        <ul>
+          <li><a href="#">Claims Corner</a></li>
+          <li><a href="#">FAQ</a></li>
+          <li><a href="#">News</a></li>
+          <li><a href="#">Contact us</a></li>
+          <li><a href="#">Privacy Policy</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      © 2025 TIS Vietnam Insurance Broker. All rights reserved.
+    </div>
+  </footer>
+</body>
+</html>

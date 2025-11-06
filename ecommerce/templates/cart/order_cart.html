@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Chi tiết đơn hàng #{{ order.id }}{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <h1 style="margin:0 0 8px 0">Đơn hàng #{{ order.id }}</h1>
+
+    <style>
+      /* ===== Bảng đơn hàng (giữ thẳng cột tiền) ===== */
+      .table-order{ width:100%; border-collapse:collapse; table-layout:auto; }
+      .table-order th, .table-order td{ padding:10px 12px; vertical-align:middle; }
+      .table-order th.prod,  .table-order td.prod{ width:42%; text-align:left; }
+      .table-order th.qty,   .table-order td.qty{ width:8%; text-align:center; }
+      .table-order th.money, .table-order td.money{
+        width:25%; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums;
+      }
+      .sum-row td{ border-top:1px solid #e5e7eb; padding-top:14px; }
+      .badge{display:inline-block;padding:6px 10px;border-radius:10px;font-weight:700}
+      .muted{color:#6b7280}
+    </style>
+
+    <!-- Thông tin tổng quan -->
+    <div class="card" style="padding:16px;margin-bottom:16px">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+        <div>
+          <div class="muted">Trạng thái</div>
+          {% if order.status == "CONFIRMED" %}
+            <span class="badge" style="background:#DCFCE7;color:#065F46">{{ order.get_status_display }}</span>
+          {% elif order.status == "PENDING_ADMIN" %}
+            <span class="badge" style="background:#FEF3C7;color:#92400E">{{ order.get_status_display }}</span>
+          {% elif order.status == "CANCELLED" %}
+            <span class="badge" style="background:#FEE2E2;color:#991B1B">{{ order.get_status_display }}</span>
+          {% else %}
+            <span class="badge" style="background:#E5E7EB;color:#111827">{{ order.get_status_display }}</span>
+          {% endif %}
+        </div>
+
+        <div>
+          <div class="muted">Ngày tạo</div>
+          <b>{{ order.created_at|date:"d/m/Y H:i" }}</b>
+        </div>
+
+        <div>
+          <div class="muted">Người mua</div>
+          <b>{{ order.user.username }}</b>
+        </div>
+
+        {% if order.confirmed_at %}
+        <div>
+          <div class="muted">Xác nhận lúc</div>
+          <b>{{ order.confirmed_at|date:"d/m/Y H:i" }}</b>
+          {% if order.confirmed_by %}<span class="muted">bởi</span> <b>{{ order.confirmed_by.username }}</b>{% endif %}
+        </div>
+        {% endif %}
+
+        {% if order.cancelled_at %}
+        <div>
+          <div class="muted">Hủy lúc</div>
+          <b>{{ order.cancelled_at|date:"d/m/Y H:i" }}</b>
+          {% if order.cancelled_by %}<span class="muted">bởi</span> <b>{{ order.cancelled_by.username }}</b>{% endif %}
+          {% if order.cancel_reason %}<div class="muted">Lý do: <i>{{ order.cancel_reason }}</i></div>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Bảng chi tiết -->
+    <div class="card" style="padding:0;overflow:auto">
+      <table class="table-order">
+        <thead>
+          <tr>
+            <th class="prod">Sản phẩm</th>
+            <th class="qty">SL</th>
+            <th class="money">Đơn giá</th>
+            <th class="money">Thành tiền</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in order.items.all %}
+          <tr>
+            <td class="prod">
+              {% if it.product.get_absolute_url %}
+                <a href="{{ it.product.get_absolute_url }}">{{ it.product.name }}</a>
+              {% else %}
+                {{ it.product.name }}
+              {% endif %}
+            </td>
+            <td class="qty">{{ it.quantity }}</td>
+            <td class="money">{{ it.price|floatformat:0 }}&nbsp;₫</td>
+            <td class="money">{{ it.line_total|floatformat:0 }}&nbsp;₫</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="sum-row">
+            <td class="money" colspan="3"><strong>Tổng đơn</strong></td>
+            <td class="money"><strong>{{ order.total_price|floatformat:0 }}&nbsp;₫</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+      <a class="btn btn-primary" href="{% url 'shop:product_list' %}">Tiếp tục mua sắm</a>
+      <a class="btn btn-light" href="{% url 'cart:order_history' %}">Về lịch sử đơn hàng</a>
+      <a class="btn btn-light" href="{% url 'cart:cart_detail' %}">Về giỏ hàng</a>
+    </div>
+  </div>
+</main>
+{% endblock %}

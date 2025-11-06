@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Lịch sử đơn hàng{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <h1 style="margin:0 0 12px 0">Lịch sử đơn hàng</h1>
+
+    <div class="card" style="margin-bottom:12px">
+      <form method="get" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label>Trạng thái:</label>
+        <select name="status" onchange="this.form.submit()">
+          <option value="">Tất cả</option>
+          {% for value,label in all_statuses %}
+            <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+
+    {% if orders|length == 0 %}
+      <div class="alert center">Chưa có đơn hàng.</div>
+      <a href="{% url 'shop:product_list' %}" class="btn btn-outline mt-2">Tiếp tục mua sắm</a>
+    {% else %}
+
+    {% for o in orders %}
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="font-weight:800">Đơn #{{ o.id }}</div>
+          <div class="muted">{{ o.created_at|date:"d/m/Y H:i" }}</div>
+        </div>
+
+        <div style="margin-top:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div>
+            {% if o.status == 'CONFIRMED' %}
+              <span class="badge" style="background:#DCFCE7;color:#065F46">Đã xác nhận</span>
+            {% elif o.status == 'PENDING_ADMIN' %}
+              <span class="badge" style="background:#FEF3C7;color:#92400E">Chờ admin xác nhận</span>
+            {% elif o.status == 'CANCELLED' %}
+              <span class="badge" style="background:#FEE2E2;color:#991B1B">Đã hủy</span>
+            {% else %}
+              <span class="badge">Nháp</span>
+            {% endif %}
+          </div>
+          <div style="font-weight:800">Tổng: {{ o.total_price|floatformat:2 }}₫</div>
+        </div>
+
+        <div style="overflow:auto;margin-top:10px">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:60%">Sản phẩm</th>
+                <th style="text-align:center">SL</th>
+                <th style="text-align:right">Đơn giá</th>
+                <th style="text-align:right">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for it in o.items.all %}
+                <tr>
+                  <td><a href="{{ it.product.get_absolute_url }}">{{ it.product.name }}</a></td>
+                  <td style="text-align:center">{{ it.quantity }}</td>
+                  <td class="price">{{ it.price|floatformat:2 }}₫</td>
+                  <td class="price">{{ it.line_total|floatformat:2 }}₫</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:10px;display:flex;justify-content:flex-end;gap:10px">
+          <a class="btn btn-light" href="{% url 'cart:order_detail' o.id %}">Xem chi tiết</a>
+        </div>
+      </div>
+    {% endfor %}
+
+    <!-- Phân trang -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:12px">
+      {% if orders.has_previous %}
+        <a class="btn btn-light" href="?page={{ orders.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}">« Trước</a>
+      {% endif %}
+      <span class="badge">Trang {{ orders.number }}/{{ orders.paginator.num_pages }}</span>
+      {% if orders.has_next %}
+        <a class="btn btn-light" href="?page={{ orders.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}">Sau »</a>
+      {% endif %}
+    </div>
+
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

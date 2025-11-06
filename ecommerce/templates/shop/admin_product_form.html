@@ -15,13 +15,14 @@
   .thumbs img{width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
   .preview-main{width:220px;height:220px;object-fit:cover;border-radius:12px;border:1px solid var(--line);background:#f8fafc}
   .image-card{display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:8px}
+  .logo-box{display:flex;align-items:center;gap:10px;margin-top:6px}
+  .logo-box img{max-height:80px;border:1px solid #e5e7eb;padding:4px;border-radius:6px;background:#fff}
 </style>
 {% endblock %}
 
 {% block content %}
   <h1>{% if is_edit %}Sửa sản phẩm{% else %}Thêm sản phẩm{% endif %}</h1>
 
-  {# Tổng hợp lỗi của cả form #}
   {% if form.errors or images_form.errors %}
     <div class="alert-error">
       <b>Vui lòng kiểm tra các lỗi sau:</b>
@@ -55,13 +56,24 @@
 
         <div class="field">
           {{ form.slug.label_tag }}{{ form.slug }}
-          <div class="muted" style="margin-top:4px">Để trống sẽ tự sinh; nếu trùng sẽ tự thêm -1, -2…</div>
+          <div class="muted" style="margin-top:4px">Vui lòng không chỉnh sửa nếu không cần thiết</div>
           {% for e in form.slug.errors %}<div class="errors">{{ e }}</div>{% endfor %}
         </div>
 
+        {% if form.supplier %}
+        <div class="field">
+          {{ form.supplier.label_tag }}{{ form.supplier }}
+          <div class="logo-box">
+            <span class="muted">Logo:</span>
+            <img id="supplierLogo" src="" alt="" style="display:none">
+          </div>
+          {% for e in form.supplier.errors %}<div class="errors">{{ e }}</div>{% endfor %}
+        </div>
+        {% endif %}
+
         <div class="field">
           {{ form.price.label_tag }}{{ form.price }}
-          <div class="muted" style="margin-top:4px">Chỉ nhập số. Hỗ trợ 40.000, 1.234,56, 40000.75…</div>
+          {% comment %} <div class="muted" style="margin-top:4px">Chỉ nhập số. Hỗ trợ 40.000, 1.234,56, 40000.75…</div> {% endcomment %}
           {% for e in form.price.errors %}<div class="errors">{{ e }}</div>{% endfor %}
         </div>
 
@@ -123,11 +135,28 @@
 {% endblock %}
 
 {% block extra_js %}
+{% get_static_prefix as STATIC_PREFIX %}
 <script>
-  // --- Debounce helper ---
-  function debounce(fn, ms){ let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); }; }
+  // ===== Helpers =====
+  function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
 
-  // ---- Auto-slug từ Name (nếu slug đang trống hoặc chưa sửa tay) ----
+  // ===== Chặn Enter gây submit ngoài ý muốn & xoá autosave khi submit =====
+  (function(){
+    const form = document.querySelector('form[method="post"]');
+    if(!form) return;
+    form.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){
+        const tag = (e.target.tagName || '').toLowerCase();
+        if(tag !== 'textarea'){ e.preventDefault(); }
+      }
+    });
+    form.addEventListener('submit', ()=>{
+      const key = window.__PRODUCT_FORM_KEY || 'shop_admin_product_form_draft';
+      try{ localStorage.removeItem(key); }catch(_){}
+    });
+  })();
+
+  // ===== Auto-slug từ Name (nếu slug chưa sửa tay) =====
   (function(){
     const nameInput = document.getElementById('id_name');
     const slugInput = document.getElementById('id_slug');
@@ -144,7 +173,6 @@
         .replace(/^-+|-+$/g,'')
         .toLowerCase();
     }
-
     nameInput.addEventListener('input', ()=>{
       if(!slugTouched || !slugInput.value){
         slugInput.value = toSlug(nameInput.value);
@@ -152,40 +180,96 @@
     });
   })();
 
-  // ---- Preview ảnh đại diện ----
+  // ===== Preview LOGO theo Supplier (thử nhiều đuôi) =====
+  (function(){
+    const supplierInput = document.getElementById('id_supplier');
+    const logoImg = document.getElementById('supplierLogo');
+    if(!supplierInput || !logoImg) return;
+
+    const MIN_LEN = 3;                 // <= chỉ bắt đầu load khi >= 3 ký tự
+    const exts = ['png','jpg','jpeg','svg','webp'];
+
+    function hideLogo(){
+      logoImg.style.display='none';
+      logoImg.removeAttribute('src');
+      logoImg.alt='';
+    }
+
+    function tryLoad(urls, idx){
+      if(idx >= urls.length){ hideLogo(); return; }
+      const probe = new Image();
+      probe.onload = function(){
+        logoImg.src = urls[idx];
+        logoImg.alt = 'Logo ' + (supplierInput.value || '').trim();
+        logoImg.style.display = 'block';
+      };
+      probe.onerror = function(){ tryLoad(urls, idx+1); };
+      probe.src = urls[idx];
+    }
+
+    function buildCandidates(name){
+      const raw = (name || '').trim();
+      if(!raw) return [];
+      const bases = [raw, raw.toLowerCase()];
+      const urls = [];
+      bases.forEach(b=>{
+        exts.forEach(ext=>{
+          urls.push("{{ STATIC_PREFIX }}logo/" + encodeURIComponent(b) + "." + ext);
+        });
+      });
+      return urls;
+    }
+
+    function updateLogo(){
+      const val = (supplierInput.value || '').trim();
+      if(val.length < MIN_LEN){ hideLogo(); return; }   // 🔴 NGẮN HƠN 3 KÝ TỰ => KHÔNG LOAD
+      const urls = buildCandidates(val);
+      if(urls.length === 0){ hideLogo(); return; }
+      tryLoad(urls, 0);
+    }
+
+    const updDeb = (fn, ms)=>{ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
+    const updateDebounced = updDeb(updateLogo, 300); // debounce 300ms để hạn chế request
+
+    supplierInput.addEventListener('input', updateDebounced);
+    supplierInput.addEventListener('change', updateLogo);
+    supplierInput.addEventListener('blur', updateLogo);
+
+    // Khi mở trang edit: vẫn chỉ load nếu đủ 3 ký tự
+    updateLogo();
+  })();
+
+  // ===== Preview ảnh đại diện =====
   (function(){
     const input = document.getElementById('id_image');
     const preview = document.getElementById('mainPreview');
     if(!input || !preview) return;
-
     input.addEventListener('change', ()=>{
       const f = input.files && input.files[0];
       if(!f){ preview.removeAttribute('src'); preview.alt=''; return; }
-      const url = URL.createObjectURL(f);
-      preview.src = url;
+      preview.src = URL.createObjectURL(f);
       preview.alt = f.name;
     });
   })();
 
-  // ---- Preview ảnh bổ sung (multiple) ----
+  // ===== Preview ảnh bổ sung (multiple) =====
   (function(){
     const input = document.getElementById('id_images');
     const box = document.getElementById('extraThumbs');
     if(!input || !box) return;
-
     input.addEventListener('change', ()=>{
       box.innerHTML = '';
       const files = Array.from(input.files || []);
       files.forEach(f=>{
-        const url = URL.createObjectURL(f);
         const img = document.createElement('img');
-        img.src = url; img.alt = f.name;
+        img.src = URL.createObjectURL(f);
+        img.alt = f.name;
         box.appendChild(img);
       });
     });
   })();
 
-  // ---- Kiểm tra trùng tên realtime (disable nút Lưu nếu trùng) ----
+  // ===== Kiểm tra trùng tên realtime (disable nút Lưu nếu trùng) =====
   (function(){
     const input = document.getElementById('id_name');
     const hint  = document.getElementById('name-check-hint');
@@ -198,7 +282,6 @@
       const name = (input.value || '').trim();
       hint.textContent = '';
       submitBtn.disabled = false;
-
       if(!name){ return; }
 
       const url = new URL("{% url 'shop:check_product_name' %}", window.location.origin);
@@ -218,10 +301,76 @@
             submitBtn.disabled = false;
           }
         })
-        .catch(()=>{ /* bỏ qua lỗi mạng */ });
+        .catch(()=>{});
     }, 300);
 
-    input.ad
+    input.addEventListener('input', check);
+    check();
+  })();
+
+  // ===== Autosave/Autorestore form vào localStorage =====
+  (function(){
+    const form = document.querySelector('form[method="post"]');
+    if(!form) return;
+
+    const pageKey = "{{ is_edit|yesno:'edit,new' }}";
+    const objId   = "{{ product.id|default:'new' }}";
+    const storageKey = `shop_admin_product_form_draft_${pageKey}_${objId}`;
+    window.__PRODUCT_FORM_KEY = storageKey;
+
+    const fields = {
+      category:  document.getElementById('id_category'),
+      name:      document.getElementById('id_name'),
+      slug:      document.getElementById('id_slug'),
+      supplier:  document.getElementById('id_supplier'),
+      price:     document.getElementById('id_price'),
+      stock:     document.getElementById('id_stock'),
+      desc:      document.getElementById('id_description')
+    };
+
+    // Khôi phục
+    try{
+      const raw = localStorage.getItem(storageKey);
+      if(raw){
+        const data = JSON.parse(raw);
+        if(fields.category && data.category) fields.category.value = data.category;
+        if(fields.name && data.name) fields.name.value = data.name;
+        if(fields.slug && data.slug) fields.slug.value = data.slug;
+        if(fields.supplier && data.supplier) fields.supplier.value = data.supplier;
+        if(fields.price && data.price) fields.price.value = data.price;
+        if(fields.stock && data.stock) fields.stock.value = data.stock;
+        if(fields.desc && data.desc) fields.desc.value = data.desc;
+        // cập nhật logo sau khôi phục
+        if(fields.supplier){
+          const ev = new Event('input', {bubbles:true});
+          fields.supplier.dispatchEvent(ev);
+        }
+      }
+    }catch(_){}
+
+    // Lưu nháp
+    function saveDraft(){
+      const data = {
+        category: fields.category ? fields.category.value : '',
+        name:     fields.name ? fields.name.value : '',
+        slug:     fields.slug ? fields.slug.value : '',
+        supplier: fields.supplier ? fields.supplier.value : '',
+        price:    fields.price ? fields.price.value : '',
+        stock:    fields.stock ? fields.stock.value : '',
+        desc:     fields.desc ? fields.desc.value : ''
+      };
+      try{ localStorage.setItem(storageKey, JSON.stringify(data)); }catch(_){}
+    }
+
+    const deb = (fn, ms)=>{ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
+    const saveDeb = deb(saveDraft, 200);
+
+    Object.values(fields).forEach(el=>{
+      if(!el) return;
+      el.addEventListener('input', saveDeb);
+      el.addEventListener('change', saveDraft);
+      el.addEventListener('blur', saveDraft);
+    });
   })();
 </script>
 {% endblock %}

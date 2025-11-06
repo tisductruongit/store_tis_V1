@@ -1,66 +1,68 @@
-# shop/forms.py
-from django import forms
+# shop/forms.py (rewritten)
+from __future__ import annotations
 from decimal import Decimal, InvalidOperation
-from .models import Product, Category
-import re, unicodedata
+import re
+import unicodedata
+
+from django import forms
+from django.core.exceptions import ValidationError
+
+from .models import Category, Product, ServicePlan
 
 
 # ===================== Helpers =====================
 
 def _slugify_vn(text: str) -> str:
-    """
-    'Gói dịch vụ 1' -> 'goi-dich-vu-1'
-    Bỏ dấu + ký tự đặc biệt, thay bằng '-'
-    """
+    """'Gói dịch vụ 1' -> 'goi-dich-vu-1' (ASCII slug)"""
     text = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode("ascii")
     text = re.sub(r"[^a-zA-Z0-9]+", "-", text)
-    return text.strip("-").lower() or "item"
+    return (text.strip("-").lower()) or "item"
 
 
-def _unique_slug(model, base_slug: str, instance=None) -> str:
+def _to_decimal_human(num_input) -> Decimal:
+    """Chuyển chuỗi tiền tệ người dùng nhập thành Decimal.
+    Hỗ trợ các kiểu: '12.345,67' (VN/EU) hoặc '12,345.67' (US) hoặc '12345.67'/'12345'.
     """
-    Tạo slug duy nhất: nếu base_slug đã tồn tại -> thêm -1, -2, ...
-    """
-    qs = model.objects.all()
-    if instance and instance.pk:
-        qs = qs.exclude(pk=instance.pk)
+    if isinstance(num_input, (int, float, Decimal)):
+        try:
+            return Decimal(str(num_input))
+        except InvalidOperation as e:
+            raise ValidationError("Giá trị số không hợp lệ.") from e
 
-    candidate = base_slug
-    i = 1
-    while qs.filter(slug=candidate).exists():
-        candidate = f"{base_slug}-{i}"
-        i += 1
-    return candidate
-
-
-def parse_decimal_vn(s: str) -> Decimal:
-    """
-    Chuẩn hoá chuỗi số theo thói quen VN:
-      - "40.000" -> 40000
-      - "1.234,56" -> 1234.56
-      - "40,5" -> 40.5
-      - "40000.75" -> 40000.75
-    """
-    s = (s or "").strip().replace(" ", "")
+    s = (num_input or "").strip()
     if not s:
-        raise InvalidOperation("empty")
+        return Decimal("0")
 
-    has_dot = "." in s
-    has_comma = "," in s
-
-    if has_dot and has_comma:
-        # dạng 1.234,56 -> bỏ . (ngăn cách nghìn), đổi , -> .
-        s = s.replace(".", "").replace(",", ".")
-    elif has_comma and not has_dot:
-        # dạng 40,5 -> 40.5
-        s = s.replace(",", ".")
-    elif has_dot and not has_comma:
-        # Nếu toàn bộ theo nhóm nghìn: 1.234.567 -> bỏ hết .
-        if re.fullmatch(r"\d{1,3}(\.\d{3})+", s):
+    # Nếu có cả '.' và ',' thì đoán định dạng theo ký tự cuối cùng xuất hiện
+    if "." in s and "," in s:
+        last_dot = s.rfind(".")
+        last_com = s.rfind(",")
+        if last_com > last_dot:
+            # VN/EU: dấu cuối là ',' -> là dấu thập phân
             s = s.replace(".", "")
-        # ngược lại: coi '.' là dấu thập phân (giữ nguyên)
+            s = s.replace(",", ".")
+        else:
+            # US: dấu cuối là '.' -> là dấu thập phân
+            s = s.replace(",", "")
+    else:
+        # Chỉ có một loại
+        if s.count(",") == 1 and s.count(".") == 0:
+            # Giả định ',' là dấu thập phân
+            s = s.replace(",", ".")
+        elif s.count(".") == 1 and s.count(",") == 0:
+            # '.' có thể là thập phân (US) -> giữ nguyên
+            pass
+        elif s.count(",") > 1 and s.count(".") == 0:
+            # Nhiều dấu ',' -> chắc là phân tách nghìn kiểu VN
+            s = s.replace(",", "")
+        elif s.count(".") > 1 and s.count(",") == 0:
+            # Nhiều dấu '.' -> chắc là phân tách nghìn kiểu US
+            s = s.replace(".", "")
 
-    return Decimal(s)
+    try:
+        return Decimal(s)
+    except InvalidOperation as e:
+        raise ValidationError("Giá trị số không hợp lệ.") from e
 
 
 # ===================== Forms =====================
@@ -68,79 +70,145 @@ def parse_decimal_vn(s: str) -> Decimal:
 class CategoryForm(forms.ModelForm):
     class Meta:
         model = Category
-        fields = ("name", "slug")
+        fields = ("name", "slug", "description", "is_active", "ordering")
+        widgets = {
+            "name": forms.TextInput(attrs={"placeholder": "Tên danh mục"}),
+            "slug": forms.TextInput(attrs={"placeholder": "(để trống để tự tạo)"}),
+            "description": forms.Textarea(attrs={"rows": 3}),
+            "ordering": forms.NumberInput(attrs={"min": 0}),
+        }
 
     def clean_slug(self):
-        name = self.cleaned_data.get("name", "")
-        slug_in = self.cleaned_data.get("slug")
-        base = _slugify_vn(slug_in or name)
-        return _unique_slug(Category, base, self.instance)
+        slug = (self.cleaned_data.get("slug") or "").strip()
+        name = self.cleaned_data.get("name") or ""
+        return slug or _slugify_vn(name)
 
 
 class ProductForm(forms.ModelForm):
+    price = forms.CharField()
+    sale_price = forms.CharField(required=False)
+
     class Meta:
         model = Product
-        fields = ("category", "name", "slug", "image", "description", "price", "stock")
+        fields = (
+            "category",
+            "name",
+            "slug",
+            "sku",
+            "price",
+            "sale_price",
+            "stock",
+            "supplier",
+            "short_description",
+            "description",
+            "image",
+            "is_active",
+        )
         widgets = {
-            "description": forms.Textarea(attrs={"rows": 4}),
-            "price": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
-            "stock": forms.NumberInput(attrs={"step": "1", "min": "0"}),
+            "name": forms.TextInput(attrs={"placeholder": "Tên sản phẩm"}),
+            "slug": forms.TextInput(attrs={"placeholder": "(để trống để tự tạo)"}),
+            "sku": forms.TextInput(attrs={"placeholder": "SKU (nếu có)"}),
+            "stock": forms.NumberInput(attrs={"min": 0}),
+            "supplier": forms.TextInput(attrs={"placeholder": "Nhà cung cấp"}),
+            "short_description": forms.Textarea(attrs={"rows": 2}),
+            "description": forms.Textarea(attrs={"rows": 6}),
         }
 
-    # --- Slug auto +1 nếu trùng ---
     def clean_slug(self):
-        name = self.cleaned_data.get("name", "")
-        slug_in = self.cleaned_data.get("slug")
-        base = _slugify_vn(slug_in or name)
-        return _unique_slug(Product, base, self.instance)
+        slug = (self.cleaned_data.get("slug") or "").strip()
+        name = self.cleaned_data.get("name") or ""
+        return slug or _slugify_vn(name)
 
-    # --- Chuẩn hoá giá ---
     def clean_price(self):
-        # Lấy từ self.data để giữ nguyên chuỗi gõ (có dấu . ,)
-        raw = self.data.get("price", "")
-        try:
-            price = parse_decimal_vn(raw)
-        except InvalidOperation:
-            raise forms.ValidationError("Giá không hợp lệ. Ví dụ: 40000, 40.000, 1.234,56, 40000.75")
-        if price < 0:
-            raise forms.ValidationError("Giá không được âm.")
-        return price
+        return _to_decimal_human(self.cleaned_data.get("price"))
 
-    # --- Chuẩn hoá tồn kho ---
-    def clean_stock(self):
-        raw = (self.data.get("stock", "") or "").replace(" ", "")
-        if raw == "":
-            return 0
-        # Chấp nhận 1.200 hoặc 1,200 là 1200
-        raw = raw.replace(".", "").replace(",", "")
-        if not raw.isdigit():
-            raise forms.ValidationError("Tồn kho phải là số nguyên không âm.")
-        stock = int(raw)
-        if stock < 0:
-            raise forms.ValidationError("Tồn kho không được âm.")
-        return stock
+    def clean_sale_price(self):
+        raw = self.cleaned_data.get("sale_price")
+        if raw in (None, ""):
+            return None
+        return _to_decimal_human(raw)
 
-    def clean_name(self):
-        name = (self.cleaned_data.get("name") or "").strip()
-        if Product.objects.exclude(pk=self.instance.pk).filter(name__iexact=name).exists():
-            raise forms.ValidationError("Tên sản phẩm đã tồn tại, vui lòng chọn tên khác.")
-        return name
+    def clean(self):
+        cleaned = super().clean()
+        price: Decimal = cleaned.get("price") or Decimal("0")
+        sale: Decimal | None = cleaned.get("sale_price")
+        if sale is not None and sale > price:
+            self.add_error("sale_price", "Giá khuyến mãi không được lớn hơn giá gốc.")
+        return cleaned
 
-# --- Widget hỗ trợ upload nhiều file ---
-class MultipleFileInput(forms.ClearableFileInput):
+# Cho phép chọn nhiều file
+class MultiFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
 
-class MultiOptionalFileField(forms.FileField):
-    def to_python(self, data):
-        # Khi không chọn file, widget multiple trả [] -> coi như None
-        if data in (None, "", [], (), False):
-            return None
-        return data
+
 
 class ProductImagesForm(forms.Form):
-    images = MultiOptionalFileField(
-        widget=MultipleFileInput(attrs={"multiple": True, "id": "id_images"}),
+    images = forms.FileField(
         required=False,
-        label="Ảnh bổ sung",
-        help_text="Giữ Ctrl để chọn nhiều ảnh.",
+        widget=MultiFileInput(attrs={"multiple": True})
     )
+
+    def clean_images(self):
+        files = self.files.getlist("images")
+        if not files:
+            return None
+        for f in files:
+            # Giới hạn kích thước và định dạng cơ bản
+            if f.size > 5 * 1024 * 1024:
+                raise ValidationError("Mỗi ảnh tối đa 5MB.")
+            if not (getattr(f, "content_type", "").startswith("image/")):
+                raise ValidationError("Chỉ được tải lên tệp hình ảnh.")
+        return files
+
+
+
+class ServicePlanForm(forms.ModelForm):
+    price = forms.CharField()
+
+    class Meta:
+        model = ServicePlan
+        fields = [
+            "product",
+            "name",
+            "term",
+            "custom_days",
+            "price",
+            "is_active",
+            "ordering",
+        ]
+        widgets = {
+            "name": forms.TextInput(attrs={"placeholder": "Tên gói"}),
+            "custom_days": forms.NumberInput(attrs={"min": 0}),
+            "ordering": forms.NumberInput(attrs={"min": 0}),
+        }
+
+    def clean_price(self):
+        return _to_decimal_human(self.cleaned_data.get("price"))
+
+    def clean(self):
+        cleaned = super().clean()
+        term = cleaned.get("term")
+        custom_days = int(cleaned.get("custom_days") or 0)
+        if term == ServicePlan.Term.CUSTOM and custom_days <= 0:
+            self.add_error("custom_days", "Vui lòng nhập số ngày cho gói tùy chỉnh.")
+        if term != ServicePlan.Term.CUSTOM:
+            cleaned["custom_days"] = 0
+        return cleaned
+
+
+
+# shop/forms.py
+class AddToCartForm(forms.Form):
+    quantity = forms.IntegerField(min_value=1, initial=1)
+    plan = forms.ModelChoiceField(
+        queryset=ServicePlan.objects.none(), required=False,
+        help_text="Chọn gói thời hạn nếu đây là sản phẩm dịch vụ."
+    )
+
+    def __init__(self, *args, **kwargs):
+        product = kwargs.pop("product", None)
+        super().__init__(*args, **kwargs)
+        if product is not None:
+            self.fields["plan"].queryset = ServicePlan.objects.filter(product=product, is_active=True).order_by("ordering")
+            if self.fields["plan"].queryset.exists():
+                self.fields["plan"].required = True  # bắt buộc nếu có gói

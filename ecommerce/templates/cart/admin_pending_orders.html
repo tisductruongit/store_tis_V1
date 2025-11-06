@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Đơn hàng chờ admin xác nhận{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <h1 style="margin:0">Đơn hàng chờ admin xác nhận</h1>
+      <div style="display:flex;gap:8px">
+        <a href="{% url 'cart:admin_confirmed_orders' %}" class="btn btn-light">Đơn đã xác nhận</a>
+      </div>
+    </div>
+
+    {% if messages %}
+      <div>
+        {% for m in messages %}
+          <div class="alert {% if m.tags %}{{ m.tags }}{% endif %}">{{ m }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if orders|length == 0 %}
+      <div class="card" style="padding:16px;text-align:center">Hiện không có đơn nào chờ xác nhận.</div>
+    {% else %}
+      {% for o in orders %}
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <div>
+              <div style="font-weight:800">Đơn #{{ o.id }}</div>
+              <div class="muted">Tài khoản: <b>{{ o.user.username }}</b> &middot; Đặt lúc: <b>{{ o.created_at|date:"d/m/Y H:i" }}</b></div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <form method="post" action="{% url 'cart:admin_confirm_order' o.id %}" class="confirm-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Xác nhận đơn</button>
+              </form>
+              <form method="post" action="{% url 'cart:admin_cancel_order' o.id %}" class="cancel-form">
+                {% csrf_token %}
+                <input type="hidden" name="reason" value="">
+                <button type="submit" class="btn btn-danger">Hủy đơn</button>
+              </form>
+            </div>
+          </div>
+
+          <div style="overflow:auto;margin-top:10px">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:42%">Tên sản phẩm</th>
+                  <th>Đơn vị cung cấp</th>
+                  <th style="text-align:center">SL</th>
+                  <th style="text-align:right">Đơn giá</th>
+                  <th style="text-align:right">Thành tiền</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for it in o.items.all %}
+                <tr>
+                  <td><a href="{{ it.product.get_absolute_url }}">{{ it.product.name }}</a></td>
+                  <td>
+                    {% if it.product.supplier %}
+                      {% if it.product.supplier.name %}{{ it.product.supplier.name }}{% else %}{{ it.product.supplier }}{% endif %}
+                    {% else %}—{% endif %}
+                  </td>
+                  <td style="text-align:center">{{ it.quantity }}</td>
+                  <td class="price">{{ it.price|floatformat:2 }}₫</td>
+                  <td class="price">{{ it.line_total|floatformat:2 }}₫</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="4" style="text-align:right"><strong>Tổng đơn</strong></td>
+                  <td class="price"><strong>{{ o.total_price|floatformat:2 }}₫</strong></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="muted" style="margin-top:8px">
+            Xác nhận bởi: <b>{{ o.confirmed_by.username|default:"—" }}</b>
+            &middot; Thời gian xác nhận: <b>{% if o.confirmed_at %}{{ o.confirmed_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</b>
+            <br>
+            Hủy bởi: <b>{{ o.cancelled_by.username|default:"—" }}</b>
+            &middot; Thời gian hủy: <b>{% if o.cancelled_at %}{{ o.cancelled_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</b>
+            {% if o.cancel_reason %}&middot; Lý do: <i>{{ o.cancel_reason }}</i>{% endif %}
+          </div>
+        </div>
+      {% endfor %}
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:12px">
+        {% if orders.has_previous %}
+          <a class="btn btn-light" href="?page={{ orders.previous_page_number }}">« Trước</a>
+        {% endif %}
+        <span class="badge">Trang {{ orders.number }}/{{ orders.paginator.num_pages }}</span>
+        {% if orders.has_next %}
+          <a class="btn btn-light" href="?page={{ orders.next_page_number }}">Sau »</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</main>
+
+<script>
+  function getCookie(name){
+    const m=document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');return m?decodeURIComponent(m.pop()):null;
+  }
+  document.addEventListener('submit', async (e)=>{
+    const f=e.target;
+    const isConfirm=f.classList.contains('confirm-form');
+    const isCancel=f.classList.contains('cancel-form');
+    if(!isConfirm && !isCancel) return;
+    e.preventDefault();
+    if(isConfirm && !confirm('Xác nhận duyệt đơn này?')) return;
+    if(isCancel){
+      if(!confirm('Bạn chắc chắn muốn HỦY đơn này?')) return;
+      const rs=prompt('Lý do hủy (tuỳ chọn):','')||'';
+      const i=f.querySelector('input[name="reason"]'); if(i) i.value=rs;
+    }
+    const res=await fetch(f.action,{method:'POST',headers:{'X-CSRFToken':getCookie('csrftoken'),'X-Requested-With':'XMLHttpRequest'},body:new FormData(f)});
+    const data=await res.json().catch(()=>({}));
+    if(data && data.ok){ const card=f.closest('.card'); if(card){card.style.opacity=.6;card.style.pointerEvents='none';setTimeout(()=>card.remove(),250);} }
+    else{ alert((data && data.message)||'Không thể thực hiện thao tác.'); }
+  });
+</script>
+{% endblock %}

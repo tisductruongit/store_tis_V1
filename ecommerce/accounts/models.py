@@ -15,7 +15,9 @@ def user_photo_path(instance, filename):
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     phone = models.CharField(max_length=20, blank=True)           # KHÔNG chỉnh sửa từ trang hồ sơ
-    avatar = models.ImageField(upload_to=user_avatar_path, blank=True, null=True)
+    # accounts/models.py (Profile)
+    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True, default='avatars/default.png')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block title %}Trang chủ{% endblock %}
+
+{% block extra_head %}
+<style>
+  .section-head{display:flex;align-items:center;gap:12px;margin-top:12px}
+  .section-head h2{margin:0;font-size:20px}
+  .section-head .more{margin-left:auto}
+
+  /* Grid & card */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-top:12px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px;display:flex;flex-direction:column;gap:8px;cursor:pointer;position:relative}
+  .card h3{font-size:16px;line-height:1.3;min-height:42px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin:6px 0 0 0}
+  .price{font-weight:600;color:var(--brand)}
+  .slider{position:relative;height:180px;overflow:hidden;border-radius:12px;background:#f8fafc}
+  .slider .slide{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .5s}
+  .slider .slide.active{opacity:1}
+
+  /* ===== News Slider (full image) ===== */
+  .news-slider {
+    position: relative;
+    height: 280px;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+  }
+  .news-track {
+    display: flex;
+    transition: transform 0.6s ease;
+    height: 100%;
+  }
+  .news-card {
+    flex: 0 0 100%;
+    height: 100%;
+  }
+  .news-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: 14px;
+  }
+  .news-prev,
+  .news-next {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,0.4);
+    border: none;
+    color: #fff;
+    font-size: 24px;
+    padding: 10px;
+    cursor: pointer;
+    border-radius: 50%;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .news-prev { left: 10px; }
+  .news-next { right: 10px; }
+  .news-slider:hover .news-prev,
+  .news-slider:hover .news-next { opacity: 1; }
+  .news-prev:hover, .news-next:hover { background: rgba(0,0,0,0.6); }
+  .news-dots {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    z-index: 10;
+  }
+  .news-dots .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #d1d5db;
+    cursor: pointer;
+  }
+  .news-dots .dot.active { background: var(--brand); }
+
+  /* Toast */
+  .toast{position:fixed;right:18px;top:18px;z-index:9999;max-width:360px;padding:12px 14px;border-radius:12px;border:1px solid #e5e7eb;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.12);display:none}
+  .toast.show{display:block;animation:fadein .2s ease-out}
+  .toast.error{border-color:#fecaca;background:#fee2e2;color:#991b1b}
+  .toast.success{border-color:#bbf7d0;background:#ecfdf5;color:#065f46}
+  .toast a{color:#2563eb;text-decoration:underline}
+  @keyframes fadein{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+</style>
+{% endblock %}
+
+{% block content %}
+  <!-- News slider -->
+  {% if latest_news %}
+  <section class="news-slider" data-interval="4000">
+    <div class="news-track">
+      {% for n in latest_news %}
+      <div class="news-card">
+        {% if n.image %}
+          <a href="{{ n.get_absolute_url }}">
+            <img src="{{ n.image.url }}" alt="{{ n.title }}">
+          </a>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <button class="news-prev">&#10094;</button>
+    <button class="news-next">&#10095;</button>
+    <div class="news-dots">
+      {% for n in latest_news %}
+        <span class="dot {% if forloop.first %}active{% endif %}"></span>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Dải link danh mục nhanh -->
+  {% if sections %}
+  <ul style="display:flex;gap:10px;flex-wrap:wrap;list-style:none;padding:0;margin:10px 0 0">
+    <li><a href="{% url 'shop:product_list' %}" class="btn btn-light">Tất cả</a></li>
+    {% for s in sections %}
+      <li><a href="{% url 'shop:product_by_category' s.category.slug %}" class="btn btn-light">{{ s.category.name }}</a></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <!-- Block danh mục nổi bật -->
+  {% for s in sections %}
+    <section>
+      <div class="section-head">
+        <h2>{{ s.category.name }}</h2>
+        <a class="more btn btn-light" href="{% url 'shop:product_by_category' s.category.slug %}">Xem tất cả</a>
+      </div>
+      <div class="grid">
+        {% for p in s.products %}
+          <div class="card" data-href="{{ p.get_absolute_url }}">
+            <div class="slider" data-interval="2500">
+              {% with imgs=p.images.all %}
+                {% if imgs|length %}
+                  {% for im in imgs %}
+                    <img class="slide {% if forloop.first %}active{% endif %}" src="{{ im.image.url }}" alt="{{ im.alt|default:p.name }}">
+                  {% endfor %}
+                {% elif p.image %}
+                  <img class="slide active" src="{{ p.image.url }}" alt="{{ p.name }}">
+                {% else %}
+                  <img class="slide active" src="{% static 'img/no-image.png' %}" alt="{{ p.name }}">
+                {% endif %}
+              {% endwith %}
+            </div>
+            <h3><a href="{{ p.get_absolute_url }}" onclick="event.stopPropagation()">{{ p.name }}</a></h3>
+            <div class="price">{{ p.price|floatformat:0 }}₫</div>
+            <p style="color:var(--muted);margin:0">Danh mục: 
+              <a href="{% url 'shop:product_by_category' s.category.slug %}" onclick="event.stopPropagation()">{{ s.category.name }}</a>
+            </p>
+            <p style="color:var(--muted);margin:0">Còn lại: {{ p.stock }}</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:auto">
+              <form class="form-add-cart" action="{% url 'cart:cart_add' p.id %}" method="post" style="display:inline;" onclick="event.stopPropagation()">
+                {% csrf_token %}
+                {% if p.stock|default:0 > 0 %}
+                  <button type="button" class="btn btn-outline btn-add-cart">Thêm vào giỏ</button>
+                {% else %}
+                  <button class="btn btn-outline" disabled style="opacity:.6;cursor:not-allowed;">Hết hàng</button>
+                {% endif %}
+              </form>
+              <a class="btn btn-light" href="{{ p.get_absolute_url }}" onclick="event.stopPropagation()">Chi tiết</a>
+              {% if request.user.is_staff %}
+                <a class="btn btn-light" href="{% url 'shop:admin_product_update' p.id %}" onclick="event.stopPropagation()">Sửa</a>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% empty %}
+    <p>Chưa có danh mục/sản phẩm để hiển thị.</p>
+  {% endfor %}
+  <div id="toast" class="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // News slider
+  (function(){
+    const slider = document.querySelector('.news-slider');
+    if(!slider) return;
+    const track = slider.querySelector('.news-track');
+    const slides = slider.querySelectorAll('.news-card');
+    const dots = slider.querySelectorAll('.news-dots .dot');
+    const prevBtn = slider.querySelector('.news-prev');
+    const nextBtn = slider.querySelector('.news-next');
+    let i = 0;
+    const ms = parseInt(slider.dataset.interval || '4000', 10);
+    let timer;
+    function goToSlide(index){
+      if(index < 0) index = slides.length - 1;
+      if(index >= slides.length) index = 0;
+      i = index;
+      track.style.transform = `translateX(-${100 * i}%)`;
+      dots.forEach((d, idx)=> d.classList.toggle('active', idx===i));
+    }
+    function next(){ goToSlide(i+1); }
+    function prev(){ goToSlide(i-1); }
+    function startAuto(){ timer = setInterval(next, ms); }
+    function stopAuto(){ clearInterval(timer); }
+    nextBtn.addEventListener('click', ()=>{ next(); stopAuto(); startAuto(); });
+    prevBtn.addEventListener('click', ()=>{ prev(); stopAuto(); startAuto(); });
+    dots.forEach((d, idx)=> d.addEventListener('click', ()=>{ goToSlide(idx); stopAuto(); startAuto(); }));
+    goToSlide(i);
+    startAuto();
+  })();
+
+  // Product sliders
+  (function(){
+    const sliders = document.querySelectorAll('.slider');
+    const visible = el => {
+      const r = el.getBoundingClientRect(), vw = innerWidth||document.documentElement.clientWidth, vh = innerHeight||document.documentElement.clientHeight;
+      return r.bottom>0 && r.right>0 && r.left<vw && r.top<vh;
+    };
+    sliders.forEach(sl=>{
+      const slides = sl.querySelectorAll('.slide'); if(slides.length<=1) return;
+      let i=0; const ms = parseInt(sl.dataset.interval||'2500',10);
+      setInterval(()=>{ if(!visible(sl)) return; slides[i].classList.remove('active'); i=(i+1)%slides.length; slides[i].classList.add('active'); }, ms);
+    });
+  })();
+
+  // Click card
+  document.addEventListener('click', function(e){
+    const card = e.target.closest('.card');
+    if(!card) return;
+    const interactive = e.target.closest('a, button, input, select, textarea, label, form');
+    if(interactive) return;
+    const url = card.getAttribute('data-href');
+    if(url){ window.location.href = url; }
+  });
+</script>
+{% endblock %}

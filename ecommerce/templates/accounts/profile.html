@@ -6,132 +6,290 @@
 <h1 class="animate__animated animate__fadeInDown">Hồ sơ</h1>
 
 <style>
-  .err{color:#dc2626;font-size:12px;margin-top:4px}
-  .help{color:#6b7280;font-size:12px}
+  :root{ --brand:#e11d48; --line:#e5e7eb; --muted:#6b7280; }
+
   .card{background:#fff;border:1px solid #eee;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .grid{display:grid;gap:16px}
+  .grid-2{grid-template-columns:220px 1fr}    /* cột avatar + cột form */
+  @media (max-width:900px){ .grid-2{grid-template-columns:1fr} }
+
+  .section-title{margin:0;display:flex;align-items:center;gap:10px}
+  .section-title i{color:var(--brand)}
+  .help{color:#6b7280;font-size:12px}
+  .err{color:#dc2626;font-size:12px;margin-top:4px}
+  .hidden{display:none !important}
+  .actions-row{display:flex;gap:10px;margin-top:12px}
+
+  /* Ẩn input thật, không chiếm chỗ */
+  .sr-only{
+    position:absolute !important;width:1px;height:1px;margin:-1px;padding:0;border:0;
+    overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;
+  }
+
+  /* Avatar (auto-save, không nút) */
   .avatar-wrap{
-    position:relative;width:160px;height:160px;border-radius:12px;overflow:hidden;
-    border:2px solid var(--brand, #e11d48); cursor:pointer; display:inline-block;
+    position:relative;width:180px;height:180px;border-radius:14px;overflow:hidden;
+    border:2px solid var(--brand);cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.08);
   }
   .avatar-wrap img{width:100%;height:100%;object-fit:cover;display:block}
-  .avatar-overlay{
-    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    background:rgba(0,0,0,.35);color:#fff;font-weight:600;font-size:14px;
-    opacity:0;transition:opacity .25s ease;
+  .overlay{position:absolute;inset:0;background:rgba(0,0,0,.45);color:#fff;display:none;align-items:center;justify-content:center;font-weight:700}
+  .avatar-wrap.is-uploading .overlay{display:flex}
+
+  /* Form readonly look */
+  .is-readonly input, .is-readonly select, .is-readonly textarea{
+    background:#f8fafc;color:#6b7280;border-color:#e5e7eb;pointer-events:none
   }
-  .avatar-wrap:hover .avatar-overlay{opacity:1}
-  /* Ẩn input avatar mặc định */
-  #id_avatar{display:none}
+
+  /* Appear nhẹ */
+  .appear{opacity:0;transform:translateY(10px);animation:fadeInUp .32s ease-out forwards}
+  @keyframes fadeInUp{to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion: reduce){ .appear{animation:none;opacity:1;transform:none} }
+
+  /* Key-value block */
+  .kv{display:grid;grid-template-columns:140px 1fr;gap:6px}
 </style>
 
-<div style="display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start">
-  <!-- Cột trái: Avatar + form + Gallery -->
-  <div>
-    <div class="card" style="padding:16px">
-      <h3><i class="fas fa-user-circle"></i> Ảnh đại diện</h3>
+<!-- ========== ONE BOX ========== -->
+<div class="card appear" style="padding:16px">
+  <div class="row" style="justify-content:space-between">
+    <h3 class="section-title"><i class="fas fa-id-card"></i> Hồ sơ cá nhân</h3>
+    <div class="row" style="gap:8px">
+      <button type="button" class="btn btn-light" id="btnEditProfile">
+        <i class="fa-regular fa-pen-to-square"></i> Sửa
+      </button>
+      <button type="button" class="btn btn-light hidden" id="btnCancelEdit">Hủy</button>
+    </div>
+  </div>
 
-      <!-- Bấm vào avatar để chọn ảnh -->
-      <label for="id_avatar" class="avatar-wrap" title="Nhấn để đổi ảnh">
-        <img id="avatarPreview"
-             src="{% if request.user.profile.avatar %}{{ request.user.profile.avatar.url }}{% else %}{% static 'img/placeholder-avatar.png' %}{% endif %}"
-             alt="avatar">
-        <span class="avatar-overlay"><i class="fas fa-camera" style="margin-right:6px"></i>Đổi ảnh</span>
-      </label>
-
-      <form method="post" enctype="multipart/form-data" style="margin-top:12px" novalidate>
+  <!-- Hàng đầu: Avatar + Form thông tin cá nhân -->
+  <div class="grid grid-2" style="margin-top:14px">
+    <!-- Avatar (auto-save) -->
+    <div>
+      <form method="post" enctype="multipart/form-data" id="avatarForm" novalidate>
         {% csrf_token %}
+        <label class="avatar-wrap" for="id_avatar" title="Chọn ảnh">
+          {% with av=request.user.profile.avatar %}
+            <img id="avatarPreview"
+                 alt="Avatar"
+                 src="{% if av %}{{ av.url }}{% else %}{% static 'img/placeholder-avatar.png' %}{% endif %}"
+                 onerror="this.onerror=null;this.src='{% static 'img/placeholder-avatar.png' %}'">
+          {% endwith %}
+          <div class="overlay" id="avatarOverlay">Đang cập nhật…</div>
+        </label>
 
-        {% if name_form.non_field_errors %}
-          <div class="err">{{ name_form.non_field_errors }}</div>
-        {% endif %}
-        {% if avatar_form.non_field_errors %}
-          <div class="err">{{ avatar_form.non_field_errors }}</div>
-        {% endif %}
-        {% if photos_form.non_field_errors %}
-          <div class="err">{{ photos_form.non_field_errors }}</div>
-        {% endif %}
-
-        <!-- Họ & Tên -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div>
-            <label for="{{ name_form.first_name.id_for_label }}">Họ</label>
-            {{ name_form.first_name }}
-            {% for e in name_form.first_name.errors %}<div class="err">{{ e }}</div>{% endfor %}
-          </div>
-          <div>
-            <label for="{{ name_form.last_name.id_for_label }}">Tên</label>
-            {{ name_form.last_name }}
-            {% for e in name_form.last_name.errors %}<div class="err">{{ e }}</div>{% endfor %}
-          </div>
-        </div>
-
-        <!-- Input avatar (ẩn bằng CSS; vẫn nằm trong form để gửi file) -->
-        {{ avatar_form.avatar }}
-        {% for e in avatar_form.avatar.errors %}<div class="err">{{ e }}</div>{% endfor %}
-        <small class="help">Chấp nhận JPG/PNG, ≤ 5MB</small>
-
-        <!-- Thêm nhiều ảnh -->
-        <h4 style="margin-top:14px"><i class="fas fa-images"></i> Thêm ảnh vào thư viện</h4>
-        {{ photos_form.photos }}
-        {% for e in photos_form.photos.errors %}<div class="err">{{ e }}</div>{% endfor %}
-        <small class="help">Giữ Ctrl (hoặc Cmd trên macOS) để chọn nhiều ảnh</small>
-
-        <div style="margin-top:12px">
-          <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Lưu</button>
+        <div class="sr-only">
+          {{ avatar_form.avatar }}  {# id="id_avatar" #}
+          {% if avatar_form.non_field_errors %}<div>{{ avatar_form.non_field_errors }}</div>{% endif %}
         </div>
       </form>
     </div>
 
-    <div class="card" style="padding:16px;margin-top:16px">
-      <h3><i class="fas fa-photo-video"></i> Thư viện ảnh</h3>
-      {% if photos %}
-        <div style="display:flex;flex-wrap:wrap;gap:10px">
-          {% for p in photos %}
-            <div style="position:relative">
-              <img src="{{ p.image.url }}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;border:2px solid #eee">
-              <a href="{% url 'accounts:photo_delete' p.pk %}"
-                 style="position:absolute;top:6px;right:6px;background:#fff;border:1px solid #eee;padding:2px 6px;border-radius:6px;font-size:12px;color:#111;box-shadow:0 2px 8px rgba(0,0,0,.08)"
-                 title="Xóa ảnh">
-                <i class="fas fa-trash-alt"></i>
-              </a>
+    <!-- Form thông tin cá nhân -->
+    <div>
+      <form method="post" novalidate id="profileForm">
+        {% csrf_token %}
+        {{ name_form.non_field_errors }}
+
+        <div id="profileFields" class="is-readonly"
+             style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          {% for f in name_form %}
+            <div>
+              <label>{{ f.label }}</label>
+              {{ f }}
+              {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
+              {% for e in f.errors %}<div class="err">{{ e }}</div>{% endfor %}
             </div>
           {% endfor %}
+
+          {# Nếu CHƯA có SĐT -> chỉ hiện input khi bấm Sửa #}
+          {% if not phone %}
+            <div id="phoneFieldWrapper" class="hidden">
+              <label for="id_phone">Số điện thoại</label>
+              <input type="tel"
+                     name="phone" id="id_phone"
+                     placeholder="VD: 098xxxxxxx"
+                     pattern="^[0-9+\\s\\-().]{8,20}$"
+                     inputmode="tel"
+                     class="input">
+              <div class="help">Nhập 8–20 ký tự (số, khoảng trắng, +, -, ., (), ).</div>
+            </div>
+          {% endif %}
         </div>
-      {% else %}
-        <p class="help">Chưa có ảnh nào.</p>
-      {% endif %}
+
+        <!-- Nút Lưu chỉ hiện khi đang edit -->
+        <div class="actions-row">
+          <button type="submit" name="action" value="save_profile" class="btn btn-primary hidden" id="btnSaveProfile">
+            <i class="fas fa-save"></i> Lưu thông tin
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
-  <!-- Cột phải: Thông tin read-only -->
-  <div class="card" style="padding:16px">
-    <h3 class="btn btn-primary">Thông tin tài khoản</h3>
+  <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
 
-    <div class="help" style="margin:6px 0">Tên đăng nhập</div>
-    <div><b>{{ request.user.username }}</b></div>
-
-    <div class="help" style="margin:12px 0 6px">Email</div>
-    <div><b>{{ email|default:"—" }}</b></div>
-
-    <div class="help" style="margin:12px 0 6px">SĐT</div>
-    <div><b>{{ phone|default:"—" }}</b></div>
-
-    <p class="help" style="margin-top:12px">Nếu bạn cần đổi email/SĐT, vui lòng liên hệ quản trị viên.</p>
+  <!-- Hàng dưới: Thông tin tài khoản + actions -->
+  <div class="row" style="align-items:flex-start">
+    <div class="kv" style="flex:1">
+      <div class="help">Tên đăng nhập</div><div><b>{{ request.user.username }}</b></div>
+      <div class="help">Email</div><div><b>{{ email|default:"—" }}</b></div>
+      <div class="help">Số điện thoại</div><div><b>{{ phone|default:"—" }}</b></div>
+    </div>
+    <div class="row" style="gap:10px;margin-left:auto">
+      <a href="{% url 'shop:product_list' %}" class="btn btn-light">Tiếp tục mua sắm</a>
+      <a href="{% url 'cart:order_history' %}" class="btn btn-outline">Xem đơn hàng</a>
+      <form action="{% url 'account_logout' %}" method="post">
+        {% csrf_token %}
+        <button class="btn" type="submit">
+          <i class="fa-solid fa-right-from-bracket"></i> Đăng xuất
+        </button>
+      </form>
+    </div>
   </div>
 </div>
 
+<!-- LỊCH SỬ MUA HÀNG (giữ nguyên ngoài một box) -->
+<div class="card appear" style="padding:16px;margin-top:16px">
+  <div class="row" style="justify-content:space-between;align-items:center">
+    <h3 class="section-title"><i class="fas fa-receipt"></i> Lịch sử mua hàng</h3>
+    <form method="get" class="row" style="gap:10px;align-items:center">
+      <label class="help" style="margin:0">Trạng thái</label>
+      <select name="status" onchange="this.form.submit()">
+        <option value="">Tất cả</option>
+        {% for value,label in all_statuses %}
+          <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+
+  {% if orders|length == 0 %}
+    <div class="alert center" style="margin-top:10px">Chưa có đơn hàng.</div>
+    <div class="row" style="justify-content:center;margin-top:8px">
+      <a href="{% url 'shop:product_list' %}" class="btn btn-outline">Tiếp tục mua sắm</a>
+    </div>
+  {% else %}
+    {% for o in orders %}
+      <div class="card appear" style="margin-top:12px;padding:12px;border-color:#f1f5f9">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <div style="font-weight:800">Đơn #{{ o.id }}</div>
+          <div class="help">{{ o.created_at|date:"d/m/Y H:i" }}</div>
+        </div>
+        <div class="row" style="justify-content:space-between;align-items:center;margin-top:6px">
+          <div>
+            {% with s=o.status %}
+              {% if s == "PENDING_ADMIN" %}
+                <span class="badge" style="background:#FEF3C7;color:#92400E">Chờ xác nhận</span>
+              {% elif s == "CONFIRMED" %}
+                <span class="badge" style="background:#DCFCE7;color:#065F46">Đã xác nhận</span>
+              {% elif s == "CANCELLED" %}
+                <span class="badge" style="background:#FEE2E2;color:#991B1B">Đã hủy</span>
+              {% elif s == "DRAFT" %}
+                <span class="badge" style="background:#E5E7EB;color:#111827">Nháp</span>
+              {% else %}
+                <span class="badge">{{ o.get_status_display }}</span>
+              {% endif %}
+            {% endwith %}
+          </div>
+          <div style="font-weight:800">Tổng: {{ o.total_price|floatformat:2 }}₫</div>
+        </div>
+        <div style="overflow:auto;margin-top:8px">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:52%">Sản phẩm</th>
+                <th style="width:14%">Gói DV</th>
+                <th style="width:8%">SL</th>
+                <th style="width:13%">Đơn giá</th>
+                <th style="width:13%">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for it in o.items.all %}
+                <tr>
+                  <td><a href="{{ it.product.get_absolute_url }}">{{ it.product.name }}</a></td>
+                  <td>{% if it.plan %}{{ it.plan.name }}{% else %}<span class="help">—</span>{% endif %}</td>
+                  <td style="text-align:center">{{ it.quantity }}</td>
+                  <td class="price">{{ it.price|floatformat:2 }}₫</td>
+                  <td class="price">{{ it.line_total|floatformat:2 }}₫</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endfor %}
+
+    <div class="row" style="gap:6px;justify-content:center;margin-top:12px">
+      {% if orders.has_previous %}
+        <a class="btn btn-light" href="?page={{ orders.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}">« Trước</a>
+      {% endif %}
+      <span class="badge">Trang {{ orders.number }}/{{ orders.paginator.num_pages }}</span>
+      {% if orders.has_next %}
+        <a class="btn btn-light" href="?page={{ orders.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}">Sau »</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
 <script>
-  // Preview ảnh đại diện khi người dùng chọn file
+  // Avatar: auto-submit khi chọn ảnh
   (function(){
+    const form = document.getElementById('avatarForm');
     const input = document.getElementById('id_avatar');
+    const wrap  = document.querySelector('.avatar-wrap');
     const img   = document.getElementById('avatarPreview');
-    if (!input || !img) return;
+    if(!form || !input || !wrap || !img) return;
+
     input.addEventListener('change', function(){
       const file = this.files && this.files[0];
-      if (!file) return;
+      if(!file) return;
       const url = URL.createObjectURL(file);
       img.src = url;
       img.onload = () => URL.revokeObjectURL(url);
+
+      wrap.classList.add('is-uploading');
+      const hidden = document.createElement('input');
+      hidden.type = 'hidden';
+      hidden.name = 'action';
+      hidden.value = 'save_avatar';
+      form.appendChild(hidden);
+      form.submit();
+    });
+  })();
+
+  // Toggle Sửa/Hủy cho form Thông tin cá nhân (SĐT chỉ khi chưa có)
+  (function(){
+    const fields    = document.getElementById('profileFields');
+    const btnEdit   = document.getElementById('btnEditProfile');
+    const btnCancel = document.getElementById('btnCancelEdit');
+    const btnSave   = document.getElementById('btnSaveProfile');
+    const phoneWrap = document.getElementById('phoneFieldWrapper');
+
+    if(!fields || !btnEdit || !btnCancel || !btnSave) return;
+
+    function setDisabledState(disabled){
+      fields.classList.toggle('is-readonly', disabled);
+      fields.querySelectorAll('input, select, textarea').forEach(el=>{
+        if(el.type==='hidden') return;
+        el.disabled = disabled;
+      });
+      btnSave.classList.toggle('hidden', disabled);
+      btnCancel.classList.toggle('hidden', disabled);
+
+      if (phoneWrap){
+        phoneWrap.classList.toggle('hidden', disabled);
+        const phoneInput = phoneWrap.querySelector('input');
+        if (phoneInput) phoneInput.disabled = disabled;
+      }
+    }
+
+    setDisabledState(true);
+    btnEdit.addEventListener('click', ()=> setDisabledState(false));
+    btnCancel.addEventListener('click', ()=>{
+      setDisabledState(true);
+      window.location.reload();
     });
   })();
 </script>

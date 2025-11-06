@@ -10,6 +10,13 @@ urlpatterns = [
     path('news/', include('news.urls', namespace='news')),
     path('cart/', include('cart.urls', namespace='cart')),
     path('', include('shop.urls', namespace='shop')),
+    
+    # Allauth (THÊM DÒNG NÀY)
+    path('accounts/', include('allauth.urls')),
+
+    path("cart/", include("cart.urls")),
+    path("cart/", include(("cart.urls", "cart"), namespace="cart")),
+    
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 

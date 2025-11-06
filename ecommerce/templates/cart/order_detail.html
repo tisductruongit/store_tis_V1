@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Đơn #{{ order.id }}{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <a href="{% url 'cart:order_history' %}" class="btn btn-light">← Quay lại lịch sử</a>
+
+    <div class="card" style="margin-top:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <h2 style="margin:0">Đơn #{{ order.id }}</h2>
+        <span class="badge" style="background: {{ badge_map.order.status.bg }}; color: {{ badge_map.order.status.fg }}">
+          {{ order.get_status_display }}
+        </span>
+      </div>
+      <div class="muted" style="margin-top:6px">Tạo lúc: {{ order.created_at|date:"d/m/Y H:i" }}</div>
+
+      {% if order.note %}
+        <div class="alert" style="margin-top:10px">Ghi chú: {{ order.note }}</div>
+      {% endif %}
+
+      <div style="overflow:auto;margin-top:12px">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:60%">Sản phẩm</th>
+              <th>SL</th>
+              <th>Đơn giá</th>
+              <th>Thành tiền</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in order.items.all %}
+              <tr>
+                <td><a href="{{ it.product.get_absolute_url }}">{{ it.product.name }}</a></td>
+                <td style="text-align:center">{{ it.quantity }}</td>
+                <td class="price">{{ it.price|floatformat:2 }}₫</td>
+                <td class="price">{{ it.line_total|floatformat:2 }}₫</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" style="text-align:right"><strong>Tổng cộng</strong></td>
+              <td class="price"><strong>{{ order.total_price|floatformat:2 }}₫</strong></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Báo cáo hệ thống{% endblock %}
+
+{% block extra_head %}
+<style>
+  h1{margin-bottom:16px}
+  .filters{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+  .filters label{font-size:13px;color:#555;display:block;margin-bottom:4px}
+  .filters input,.filters select{padding:6px 8px;border:1px solid #ccc;border-radius:6px}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:20px}
+  .card h3{margin:0 0 10px}
+  .quick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .quick .btn{padding:6px 12px;border:1px solid #ddd;border-radius:8px;background:#fafafa;cursor:pointer}
+  .quick .btn.active{border-color:#2563eb;color:#2563eb}
+  .chart-box{position:relative;height:400px}
+  .chart-box canvas{width:100% !important;height:100% !important}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<h1>Báo cáo hệ thống</h1>
+
+<div class="card">
+  <div class="filters">
+    <div>
+      <label>Từ ngày</label>
+      <input id="fFrom" type="date">
+    </div>
+    <div>
+      <label>Đến ngày</label>
+      <input id="fTo" type="date">
+    </div>
+    <div>
+      <label>Group by</label>
+      <select id="fGroup">
+        <option value="day">Day</option>
+        <option value="week">Week</option>
+        <option value="month">Month</option>
+      </select>
+    </div>
+    <div>
+      <label>Nhà cung cấp</label>
+      <input id="fSupplier" list="supplierList" placeholder="(Tất cả)">
+      <datalist id="supplierList">
+        {% for s in suppliers %}<option value="{{ s }}">{% endfor %}
+      </datalist>
+    </div>
+    <div>
+      <label>Danh mục</label>
+      <select id="fCategory">
+        <option value="">(Tất cả)</option>
+        {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div style="align-self:end">
+      <button id="btnReload" class="btn btn-primary">Tải dữ liệu</button>
+    </div>
+  </div>
+
+  <div class="quick">
+    <button class="btn" data-range="7">7 ngày</button>
+    <button class="btn" data-range="30">30 ngày</button>
+    <button class="btn" data-range="month">Tháng này</button>
+    <button class="btn" data-range="quarter">Quý này</button>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Người dùng mới</h3>
+  <div class="chart-box"><canvas id="chartUsers"></canvas></div>
+</div>
+
+<div class="card">
+  <h3>Lượt truy cập</h3>
+  <div class="chart-box"><canvas id="chartVisits"></canvas></div>
+</div>
+
+<div class="card">
+  <h3>Theo Nhà cung cấp</h3>
+  <div class="chart-box"><canvas id="chartSupplier"></canvas></div>
+</div>
+
+<div class="card">
+  <h3>Theo Danh mục</h3>
+  <div class="chart-box"><canvas id="chartCategory"></canvas></div>
+</div>
+
+<div class="card">
+  <h3>Tư vấn theo trạng thái</h3>
+  <div class="chart-box"><canvas id="chartConsultStatus"></canvas></div>
+</div>
+
+<div class="card">
+  <h3>Tư vấn theo nhân viên</h3>
+  <div class="chart-box"><canvas id="chartConsultStaff"></canvas></div>
+</div>
+
+<div class="card">
+  <h3>Tư vấn theo kỳ</h3>
+  <div class="chart-box"><canvas id="chartConsultPeriod"></canvas></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const $ = (s)=>document.querySelector(s);
+
+function setQuick(range){
+  const today=new Date(); let from=new Date(), to=new Date(today);
+  if(range==='7'){from=new Date(today.getTime()-6*86400000);}
+  else if(range==='30'){from=new Date(today.getTime()-29*86400000);}
+  else if(range==='month'){from=new Date(today.getFullYear(),today.getMonth(),1);}
+  else if(range==='quarter'){
+    const qStart=Math.floor(today.getMonth()/3)*3;
+    from=new Date(today.getFullYear(),qStart,1);
+  }
+  $('#fFrom').value=from.toISOString().slice(0,10);
+  $('#fTo').value=to.toISOString().slice(0,10);
+}
+
+document.querySelectorAll('.quick .btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.quick .btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active'); setQuick(b.dataset.range); reload();
+  });
+});
+
+function makeLine(el, labels, data, label){
+  if(el._ch) el._ch.destroy();
+  el._ch=new Chart(el,{type:'line',
+    data:{labels,datasets:[{label,data,tension:.3,fill:false,borderColor:'#2563eb'}]},
+    options:{responsive:true,maintainAspectRatio:false}});
+}
+function makeBar(el, labels, data, label){
+  if(el._ch) el._ch.destroy();
+  el._ch=new Chart(el,{type:'bar',
+    data:{labels,datasets:[{label,data,backgroundColor:'#60a5fa'}]},
+    options:{responsive:true,maintainAspectRatio:false}});
+}
+
+async function reload(){
+  try {
+    const p=new URLSearchParams();
+    const f=$('#fFrom').value,t=$('#fTo').value,g=$('#fGroup').value;
+    const sup=$('#fSupplier').value.trim(), cat=$('#fCategory').value;
+    if(f) p.set('date_from',f); if(t) p.set('date_to',t); if(g) p.set('group_by',g);
+    if(sup) p.set('supplier',sup); if(cat) p.set('category_id',cat);
+
+    const url="{% url 'shop:admin_reports_data' %}?"+p.toString();
+    const r=await fetch(url,{headers:{'X-Requested-With':'XMLHttpRequest'}});
+    const d=await r.json();
+    console.log("report-data", d);
+
+    makeLine(document.getElementById('chartUsers'),
+      d.users_by_period.map(x=>x.period),
+      d.users_by_period.map(x=>x.count),'User mới');
+
+    makeBar(document.getElementById('chartVisits'),
+      d.visits_by_period.map(x=>x.period),
+      d.visits_by_period.map(x=>x.views),'Views');
+
+    makeBar(document.getElementById('chartSupplier'),
+      d.orders_by_supplier.map(x=>x.supplier),
+      d.orders_by_supplier.map(x=>x.orders),'Đơn hàng');
+
+    makeBar(document.getElementById('chartCategory'),
+      d.orders_by_category.map(x=>x.category),
+      d.orders_by_category.map(x=>x.orders),'Đơn hàng');
+
+    makeBar(document.getElementById('chartConsultStatus'),
+      d.consult_by_status.map(x=>x.status),
+      d.consult_by_status.map(x=>x.count),'Tư vấn theo trạng thái');
+
+    makeBar(document.getElementById('chartConsultStaff'),
+      d.consult_by_staff.map(x=>x.staff),
+      d.consult_by_staff.map(x=>x.count),'Tư vấn theo nhân viên');
+
+    makeBar(document.getElementById('chartConsultPeriod'),
+      d.consult_by_period.map(x=>x.period),
+      d.consult_by_period.map(x=>x.total),'Tư vấn theo kỳ');
+
+  } catch (e) {
+    console.error("reload error", e);
+    alert("Không tải được dữ liệu báo cáo!");
+  }
+}
+
+(function init(){
+  const today=new Date();
+  const toStr=today.toISOString().slice(0,10);
+  const from=new Date(today.getTime()-29*86400000);
+  $('#fTo').value=toStr; $('#fFrom').value=from.toISOString().slice(0,10);
+  $('#fGroup').value='day'; reload();
+})();
+$('#btnReload').addEventListener('click',reload);
+
+window.addEventListener("load",()=>{
+  document.querySelectorAll("canvas").forEach(cv=>{
+    try{cv._ch?.resize();}catch(e){}
+  });
+});
+</script>
+{% endblock %}

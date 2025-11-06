@@ -1,45 +1,176 @@
 {% extends 'base.html' %}
+{% load static %}
+
 {% block title %}Đăng ký{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}
+
 {% block content %}
 <h1>Đăng ký</h1>
 
-<form method="post" novalidate>
-  {% csrf_token %}
+{# ====== CASE 1: Hoàn tất hồ sơ (đăng nhập bằng Google/Outlook rồi thiếu phone) ====== #}
+{% if needs_profile %}
+  <form method="post" action="{% url 'accounts:complete_profile' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}" class="card" style="padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;">
+    {% csrf_token %}
+    <p class="mb-3" style="color:#475569">Vui lòng bổ sung thông tin để hoàn tất.</p>
 
-  {% if form.non_field_errors %}
-    <div class="alert error">
-      {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
-    </div>
-  {% endif %}
+    <p>
+      <label for="id_full_name">Họ và tên</label>
+      <input type="text" id="id_full_name" name="full_name" class="input" required value="{{ social_name|default:'' }}" placeholder="Nguyễn Văn A">
+    </p>
 
-  <p>
-    {{ form.username.label_tag }} {{ form.username }}
-    {% for e in form.username.errors %}<span class="err">{{ e }}</span>{% endfor %}
-  </p>
-  <p>
-    {{ form.email.label_tag }} {{ form.email }}
-    {% for e in form.email.errors %}<span class="err">{{ e }}</span>{% endfor %}
-  </p>
-  {% if form.phone %}
-  <p>
-    {{ form.phone.label_tag }} {{ form.phone }}
-    {% for e in form.phone.errors %}<span class="err">{{ e }}</span>{% endfor %}
-  </p>
-  {% endif %}
-  <p>
-    {{ form.password.label_tag }} {{ form.password }}
-    {% for e in form.password.errors %}<span class="err">{{ e }}</span>{% endfor %}
-  </p>
-  <p>
-    {{ form.password2.label_tag }} {{ form.password2 }}
-    {% for e in form.password2.errors %}<span class="err">{{ e }}</span>{% endfor %}
-  </p>
+    <p>
+      <label for="id_phone">Số điện thoại</label>
+      <input type="tel" id="id_phone" name="phone" class="input" required
+             pattern="^(0|\+84)([1-9][0-9]{8})$" inputmode="tel"
+             placeholder="0xxxxxxxxx hoặc +84xxxxxxxxx">
+      <small class="hint">Định dạng hợp lệ: 0xxxxxxxxx hoặc +84xxxxxxxxx</small>
+    </p>
 
-  <button class="btn btn-primary" type="submit">Tạo tài khoản</button>
-</form>
+    <input type="hidden" name="email" value="{{ social_email|default:'' }}">
+    <input type="hidden" name="provider" value="{{ social_provider|default:'' }}">
+    {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
 
-<style>
-  .alert.error{margin:8px 0;padding:10px;border-radius:10px;border:1px solid #fecaca;background:#fee2e2;color:#991b1b}
-  .err{display:block;color:#dc2626;font-size:12px;margin-top:4px}
-</style>
+    <button class="btn btn-primary" type="submit">Lưu &amp; tiếp tục</button>
+  </form>
+
+  <script>
+    (function(){
+      const f = document.querySelector('form');
+      const phone = document.getElementById('id_phone');
+      f.addEventListener('submit', function(e){
+        if(!phone.checkValidity()){
+          e.preventDefault();
+          phone.reportValidity();
+        }
+      });
+    })();
+  </script>
+
+{% else %}
+{# ====== CASE 2: Flow đăng ký tài khoản thông thường ====== #}
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="alert error">
+        {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+      </div>
+    {% endif %}
+
+    <p>
+      {{ form.username.label_tag }} {{ form.username }}
+      {% for e in form.username.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    </p>
+
+    <p>
+      {{ form.email.label_tag }} {{ form.email }}
+      {% for e in form.email.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    </p>
+
+    {% if form.phone %}
+    <p>
+      {{ form.phone.label_tag }} {{ form.phone }}
+      {% for e in form.phone.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    </p>
+    {% endif %}
+
+    <p>
+      {{ form.password1.label_tag }}
+      <span class="pwd">
+        {{ form.password1 }}
+        <button type="button" class="eye" aria-label="Hiện/ẩn mật khẩu"
+                data-toggle="#{{ form.password1.id_for_label }}">
+          <i class="fa-solid fa-eye"></i>
+        </button>
+      </span>
+      {% for e in form.password1.errors %}<span class="err">{{ e }}</span>{% endfor %}
+
+      <div class="meter" id="pwd1-meter"><span class="fill"></span></div>
+      <div class="meter-label" id="pwd1-label">Độ mạnh: Chưa có</div>
+      <small class="hint">Gợi ý: ≥8 ký tự, nên có chữ hoa, số, ký tự đặc biệt.</small>
+    </p>
+
+    <p>
+      {{ form.password2.label_tag }}
+      <span class="pwd">
+        {{ form.password2 }}
+        <button type="button" class="eye" aria-label="Hiện/ẩn mật khẩu"
+                data-toggle="#{{ form.password2.id_for_label }}">
+          <i class="fa-solid fa-eye"></i>
+        </button>
+      </span>
+      {% for e in form.password2.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    </p>
+
+    <button class="btn btn-primary" type="submit">Tạo tài khoản</button>
+  </form>
+
+  <style>
+    .alert.error{margin:8px 0;padding:10px;border-radius:10px;
+      border:1px solid #fecaca;background:#fee2e2;color:#991b1b}
+    .err{display:block;color:#dc2626;font-size:12px;margin-top:4px}
+    .hint{display:block;color:#6b7280;font-size:12px;margin-top:6px}
+    .pwd{position:relative;display:inline-block;width:100%}
+    .pwd input{width:100%}
+    .eye{
+      position:absolute;right:10px;top:50%;transform:translateY(-50%);
+      border:none;background:transparent;cursor:pointer;font-size:16px;
+      line-height:1;opacity:.65;padding:0
+    }
+    .eye:hover{opacity:1}
+    .meter{margin-top:8px;height:8px;background:#e5e7eb;border-radius:999px;position:relative;overflow:hidden}
+    .meter .fill{position:absolute;left:0;top:0;bottom:0;width:0%;background:#e5e7eb;transition:width .25s, background .25s}
+    .meter-label{margin-top:6px;font-size:12px;color:#6b7280}
+  </style>
+
+  <script>
+  (function(){
+    document.querySelectorAll('.eye').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const sel = btn.getAttribute('data-toggle');
+        const input = document.querySelector(sel);
+        if(!input) return;
+        const icon = btn.querySelector('i');
+        if(input.type === 'password'){
+          input.type = 'text';
+          icon.classList.replace('fa-eye','fa-eye-slash');
+        } else {
+          input.type = 'password';
+          icon.classList.replace('fa-eye-slash','fa-eye');
+        }
+        input.focus();
+      });
+    });
+    const pwd = document.querySelector('#{{ form.password1.id_for_label }}');
+    const meter = document.getElementById('pwd1-meter');
+    const fill = meter ? meter.querySelector('.fill') : null;
+    const label = document.getElementById('pwd1-label');
+    function scorePassword(s){
+      if(!s) return 0;
+      let sc=0;
+      if(s.length>=8) sc++;
+      if(/[A-Z]/.test(s)) sc++;
+      if(/[0-9]/.test(s)) sc++;
+      if(/[^A-Za-z0-9]/.test(s)) sc++;
+      if(s.length>=12) sc++;
+      return Math.min(sc,5);
+    }
+    const colors=['#e5e7eb','#dc2626','#d97706','#f59e0b','#16a34a','#0ea5e9'];
+    const texts=['Chưa có','Yếu','Trung bình','Khá','Mạnh','Rất mạnh'];
+    function updateMeter(){
+      if(!pwd||!fill||!label) return;
+      const sc=scorePassword(pwd.value);
+      fill.style.width=(sc/5*100)+'%';
+      fill.style.background=colors[sc];
+      label.textContent='Độ mạnh: '+texts[sc];
+    }
+    if(pwd){pwd.addEventListener('input',updateMeter);updateMeter();}
+  })();
+  </script>
+{% endif %}
 {% endblock %}

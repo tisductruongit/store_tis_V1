@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Đơn hàng đã xác nhận{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <h1 style="margin:0 0 12px 0">Đơn hàng đã xác nhận</h1>
+
+    <!-- Bộ lọc -->
+    <div class="card" style="margin-bottom:12px">
+      <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div>
+          <label>Tìm kiếm</label>
+          <input type="text" name="q" value="{{ q }}" placeholder="Mã đơn hoặc username">
+        </div>
+        <div>
+          <label>Từ ngày (xác nhận)</label>
+          <input type="date" name="date_from" value="{{ date_from }}">
+        </div>
+        <div>
+          <label>Đến ngày (xác nhận)</label>
+          <input type="date" name="date_to" value="{{ date_to }}">
+        </div>
+        <div>
+          <button class="btn btn-primary" type="submit">Lọc</button>
+          <a class="btn btn-light" href="?">Xoá lọc</a>
+          <a class="btn btn-outline" href="{% url 'cart:admin_pending_orders' %}">← Đơn chờ xác nhận</a>
+        </div>
+      </form>
+    </div>
+
+    {% if orders|length == 0 %}
+      <div class="alert center">Chưa có đơn nào phù hợp.</div>
+    {% else %}
+      {% for o in orders %}
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <div>
+              <div style="font-weight:800">Đơn #{{ o.id }}</div>
+              <div class="muted">
+                Tài khoản mua: <b>{{ o.user.username }}</b> &middot;
+                Đặt lúc: <b>{{ o.created_at|date:"d/m/Y H:i" }}</b>
+              </div>
+            </div>
+            <div>
+              <span class="badge" style="background:#DCFCE7;color:#065F46">ĐÃ XÁC NHẬN</span>
+            </div>
+          </div>
+
+          <div style="overflow:auto;margin-top:10px">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:42%">Tên sản phẩm</th>
+                  <th>Đơn vị cung cấp</th>
+                  <th style="text-align:center">SL</th>
+                  <th style="text-align:right">Đơn giá</th>
+                  <th style="text-align:right">Thành tiền</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for it in o.items.all %}
+                  <tr>
+                    <td><a href="{{ it.product.get_absolute_url }}">{{ it.product.name }}</a></td>
+                    <td>{{ it.product.supplier.name|default:it.product.supplier|default:"—" }}</td>
+                    <td style="text-align:center">{{ it.quantity }}</td>
+                    <td class="price">{{ it.price|floatformat:2 }}₫</td>
+                    <td class="price">
+                      {% if it.line_total %}{{ it.line_total|floatformat:2 }}₫{% else %}{{ it.price|floatformat:2|add:""|floatformat:2 }}₫{% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="4" style="text-align:right"><strong>Tổng đơn</strong></td>
+                  <td class="price"><strong>{{ o.total_price|floatformat:2 }}₫</strong></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="muted" style="margin-top:8px">
+            Xác nhận bởi: <b>{{ o.confirmed_by.username|default:"—" }}</b>
+            &middot; Thời gian xác nhận: <b>{% if o.confirmed_at %}{{ o.confirmed_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</b>
+          </div>
+        </div>
+      {% endfor %}
+
+      <!-- Phân trang -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:12px">
+        {% if orders.has_previous %}
+          <a class="btn btn-light"
+             href="?page={{ orders.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">« Trước</a>
+        {% endif %}
+        <span class="badge">Trang {{ orders.number }}/{{ orders.paginator.num_pages }}</span>
+        {% if orders.has_next %}
+          <a class="btn btn-light"
+             href="?page={{ orders.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">Sau »</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

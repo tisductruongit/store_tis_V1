@@ -2,11 +2,40 @@
 {% block title %}Xoá sản phẩm{% endblock %}
 
 {% block content %}
-  <h1>Xoá sản phẩm</h1>
-  <p>Bạn có chắc muốn xoá <b>{{ product.name }}</b>?</p>
-  <form method="post">
+  <h1 style="margin-bottom:8px">Xoá sản phẩm</h1>
+
+  <div style="background:#FEF2F2;border:1px solid #FEE2E2;color:#991B1B;padding:12px 14px;border-radius:10px;margin:10px 0">
+    <b>Cảnh báo:</b>
+    {% if order_count and order_count|add:0 > 0 %}
+      Sản phẩm <b>{{ product.name }}</b> đang được tham chiếu bởi <b>{{ order_count }}</b> dòng đơn hàng.
+      Khi xác nhận, hệ thống sẽ <b>ẨN</b> sản phẩm thay vì xoá vĩnh viễn.
+    {% else %}
+      Bạn sắp xoá vĩnh viễn sản phẩm <b>{{ product.name }}</b>.
+    {% endif %}
+  </div>
+
+  <form method="post" id="delete-form" style="margin-top:12px">
     {% csrf_token %}
-    <button type="submit" class="btn btn-primary">Xoá</button>
-    <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-outline">Hủy</a>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0">
+      <input type="checkbox" id="confirm" />
+      <span>Tôi hiểu và đồng ý thực hiện thao tác này.</span>
+    </label>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="submit" class="btn btn-primary" id="btn-delete" disabled>
+        {% if order_count and order_count|add:0 > 0 %}Ẩn sản phẩm{% else %}Xoá{% endif %}
+      </button>
+      <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-outline">Hủy</a>
+    </div>
   </form>
+
+  <script>
+    (function(){
+      const cb = document.getElementById('confirm');
+      const btn = document.getElementById('btn-delete');
+      const form = document.getElementById('delete-form');
+      cb.addEventListener('change', ()=> btn.disabled = !cb.checked);
+      form.addEventListener('submit', ()=> { btn.disabled = true; btn.textContent = 'Đang xử lý...'; });
+    })();
+  </script>
 {% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Đơn #{{ order.id }}{% endblock %}
+{% block content %}
+<h1>Đơn #{{ order.id }}</h1>
+
+<p>
+  Khách: <strong>{{ order.user.username }}</strong> —
+  Trạng thái: <strong>{{ order.get_status_display }}</strong> —
+  Tạm tính: <strong>{{ order.subtotal }}₫</strong><br>
+  Ghi chú: {{ order.note|default:"—" }}<br>
+  Tạo lúc: {{ order.created_at|date:"H:i d/m/Y" }}
+</p>
+
+<table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden">
+  <thead>
+    <tr style="background:#f9fafb">
+      <th style="padding:8px 10px;text-align:left">Sản phẩm</th>
+      <th style="padding:8px 10px;text-align:right">Giá</th>
+      <th style="padding:8px 10px;text-align:right">SL</th>
+      <th style="padding:8px 10px;text-align:right">Thành tiền</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for it in order.items.all %}
+    <tr>
+      <td style="padding:8px 10px"><a href="{{ it.product.get_absolute_url }}">{{ it.product.name }}</a></td>
+      <td style="padding:8px 10px;text-align:right">{{ it.price }}</td>
+      <td style="padding:8px 10px;text-align:right">{{ it.quantity }}</td>
+      <td style="padding:8px 10px;text-align:right">{{ it.line_total }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="3" style="padding:10px 10px;text-align:right"><strong>Tạm tính</strong></td>
+      <td style="padding:10px 10px;text-align:right"><strong>{{ order.subtotal }}</strong></td>
+    </tr>
+  </tfoot>
+</table>
+{% endblock %}

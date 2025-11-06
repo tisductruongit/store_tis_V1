@@ -3,14 +3,19 @@
 {% block title %}{{ product.name }}{% endblock %}
 
 {% block extra_head %}
+  <!-- (Tùy chọn) FontAwesome nếu bạn muốn hiện icon đẹp; có thể bỏ nếu không dùng -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+
 <style>
   :root{
-    --red:#e11d2a;
+    --brand:#2563eb;
+    --red:#c03624;
     --line:#e5e7eb;
     --muted:#6b7280;
-    --anim-dur:420ms;
-    --anim-ease:cubic-bezier(.2,.6,.2,1);
   }
+
   .wrap{max-width:1200px;margin:0 auto}
   .grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px}
   @media (max-width:1000px){.grid{grid-template-columns:1fr}}
@@ -18,26 +23,22 @@
   /* ===== GALLERY ===== */
   .gallery h1{margin:0 0 8px}
   .main{
-    position:relative; width:100%; aspect-ratio:1/1;
-    border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#f8fafc;
-    isolation:isolate;
+    position:relative;width:100%;aspect-ratio:1/1;
+    border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#f8fafc;isolation:isolate;
   }
   .main img{
-    position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
-    opacity:0; visibility:hidden; transform:scale(1.02);
-    transition:
-      opacity var(--anim-dur) var(--anim-ease),
-      visibility var(--anim-dur) step-end,
-      transform var(--anim-dur) var(--anim-ease);
+    position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+    opacity:0;visibility:hidden;transform:scale(1.02);
+    transition:opacity .42s cubic-bezier(.2,.6,.2,1),visibility .42s step-end,transform .42s cubic-bezier(.2,.6,.2,1);
     will-change:opacity,transform;
   }
-  .main img.active{opacity:1; visibility:visible; transform:scale(1); z-index:1}
+  .main img.active{opacity:1;visibility:visible;transform:scale(1);z-index:1}
 
   .thumbs{display:flex;gap:10px;overflow:auto;padding:10px 4px}
   .thumbs img{
     width:72px;height:72px;object-fit:cover;border-radius:8px;border:2px solid transparent;
     background:#f3f4f6;cursor:pointer;flex:0 0 auto;
-    transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+    transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;
   }
   .thumbs img:hover{transform:translateY(-2px);box-shadow:0 3px 10px rgba(0,0,0,.08)}
   .thumbs img.active{border-color:var(--red)}
@@ -52,13 +53,68 @@
   .price{font-size:24px;font-weight:800;color:var(--red)}
   .price .old{font-size:14px;color:var(--muted);text-decoration:line-through;margin-left:8px}
   .meta{color:var(--muted);font-size:14px}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;cursor:pointer}
-  .btn-primary{background:var(--red);border-color:var(--red);color:#fff}
   .btn-block{width:100%}
 
-  @media (prefers-reduced-motion:reduce){
-    .main img,.thumbs img{transition:none;transform:none}
+  /* ===== Toast (thông báo nhanh) ===== */
+  .toast{
+    position:fixed;right:18px;top:18px;z-index:9999;max-width:360px;
+    padding:12px 14px;border-radius:12px;border:1px solid #e5e7eb;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.12);
+    display:none
   }
+  .toast.show{display:block;animation:fadein .2s ease-out}
+  .toast.error{border-color:#fecaca;background:#fee2e2;color:#991b1b}
+  .toast.success{border-color:#bbf7d0;background:#ecfdf5;color:#065f46}
+  .toast a{color:var(--brand);text-decoration:underline}
+  @keyframes fadein{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+  /* ===== CONSULT MODAL (theo format mẫu) ===== */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:9998}
+  .modal{position:fixed;inset:0;display:none;place-items:center;z-index:9999}
+  .modal.show,.modal-backdrop.show{display:grid}
+
+  .consult-card{
+    width:min(96vw, 980px);
+    background:#fff;border:1px solid #e5e7eb;border-radius:18px;
+    box-shadow:0 30px 80px rgba(0,0,0,.25);overflow:hidden;position:relative
+  }
+  .consult-grid{display:grid;grid-template-columns:1fr;gap:0}
+  @media (min-width:900px){ .consult-grid{grid-template-columns:1.1fr 1fr} }
+
+  /* Left column – info */
+  .c-left{padding:22px 20px}
+  .c-left h2{
+    margin:0 0 14px;font-size:28px;line-height:1.2;
+    color:#c03624; font-weight:800; letter-spacing:.2px;
+  }
+  .info-group{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:10px}
+  .info-item h4{margin:0 0 6px;font-size:14px;letter-spacing:.08em}
+  .info-item p{margin:0;color:#1f2937;white-space:pre-line}
+  .info-item a{color:#374151}
+  .c-photo{border-top:1px solid #e5e7eb;margin-top:14px;padding-top:14px}
+  .c-photo img{width:100%;height:280px;object-fit:cover;border-radius:12px}
+
+  /* Right column – form */
+  .c-right{background:#fafbfd;padding:22px 22px 18px}
+  .c-right h3{margin:0 0 16px;font-size:26px;line-height:1.2}
+  .pill{width:100%;padding:12px 16px;border:1px solid #e5e7eb;border-radius:999px;background:#fff}
+  .pill::placeholder{color:#9ca3af}
+  .area{
+    width:100%;min-height:160px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:16px;background:#fff;resize:vertical
+  }
+  .c-form{display:grid;gap:12px}
+  .c-actions{display:flex;justify-content:flex-end;margin-top:10px}
+  .btn-submit{
+    display:inline-flex;align-items:center;gap:10px;
+    background:#c03624;color:#fff;border:0;border-radius:12px;
+    padding:12px 20px;font-weight:700;letter-spacing:.04em;cursor:pointer
+  }
+  .btn-submit:hover{filter:brightness(.95)}
+  .btn-cancel{background:transparent;border:1px solid #e5e7eb;border-radius:12px;padding:12px 16px;cursor:pointer}
+
+  .c-close{
+    position:absolute;right:12px;top:10px;border:0;background:transparent;font-size:22px;opacity:.65;cursor:pointer
+  }
+  .c-close:hover{opacity:1}
 </style>
 {% endblock %}
 
@@ -71,7 +127,7 @@
   </div>
 
   <div class="grid">
-    <!-- LEFT: Gallery + Mô tả chi tiết -->
+    <!-- LEFT: Gallery + mô tả -->
     <section class="gallery">
       <h1>{{ product.name }}</h1>
 
@@ -79,8 +135,7 @@
         <div class="main" id="slider" data-interval="3500">
           {% if images %}
             {% for im in images %}
-              <img class="{% if forloop.first %}active{% endif %}"
-                   src="{{ im.image.url }}" alt="{{ im.alt|default:product.name }}">
+              <img class="{% if forloop.first %}active{% endif %}" src="{{ im.image.url }}" alt="{{ im.alt|default:product.name }}">
             {% endfor %}
           {% elif product.image %}
             <img class="active" src="{{ product.image.url }}" alt="{{ product.name }}">
@@ -92,9 +147,7 @@
         <div class="thumbs" id="thumbs">
           {% if images %}
             {% for im in images %}
-              <img class="{% if forloop.first %}active{% endif %}"
-                   data-idx="{{ forloop.counter0 }}" src="{{ im.image.url }}"
-                   alt="{{ im.alt|default:product.name }}">
+              <img class="{% if forloop.first %}active{% endif %}" data-idx="{{ forloop.counter0 }}" src="{{ im.image.url }}" alt="{{ im.alt|default:product.name }}">
             {% endfor %}
           {% elif product.image %}
             <img class="active" src="{{ product.image.url }}" alt="{{ product.name }}">
@@ -104,14 +157,13 @@
         </div>
       {% endwith %}
 
-      <!-- MÔ TẢ CHI TIẾT đặt dưới khu vực hình -->
       <div class="desc">
         <h3>Mô tả chi tiết</h3>
         <div class="body">{{ product.description|linebreaks }}</div>
       </div>
     </section>
 
-    <!-- RIGHT: Sticky buy box -->
+    <!-- RIGHT: Buy box -->
     <aside class="buybox">
       <div class="price">
         {{ product.price|floatformat:0 }}₫
@@ -126,14 +178,98 @@
         {% if product.stock > 0 %}Còn lại: {{ product.stock }}{% else %}<span style="color:#dc2626">Hết hàng</span>{% endif %}
       </div>
 
-      <div style="margin-top:14px;display:flex;gap:8px">
-        <button class="btn btn-primary btn-block">Mua ngay</button>
-      </div>
+      {% if product.stock > 0 %}
+        <!-- Mua ngay -->
+        <form class="form-buy-now" action="{% url 'cart:cart_add' product.id %}" method="post" style="margin-top:14px">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary btn-block">
+            <i class="fa-solid fa-bolt"></i> Mua ngay
+          </button>
+        </form>
+
+        <!-- Thêm vào giỏ -->
+        <form class="form-add-cart" action="{% url 'cart:cart_add' product.id %}" method="post" style="margin-top:8px">
+          {% csrf_token %}
+          <!-- type=button để JS kiểm tra đăng nhập trước -->
+          <button type="button" class="btn btn-block btn-add-cart">
+            <i class="fa-solid fa-cart-plus"></i> Thêm vào giỏ
+          </button>
+        </form>
+      {% else %}
+        <button class="btn btn-block" disabled style="margin-top:14px;opacity:.6;cursor:not-allowed;">Hết hàng</button>
+      {% endif %}
+
       <div style="margin-top:8px;display:flex;gap:8px">
-        <button class="btn btn-block">Thêm vào giỏ</button>
-        <button class="btn btn-primary btn-block">Tư vấn ngay</button>
+        <button type="button"
+          class="btn btn-block btn-consult"
+          data-url="{% url 'shop:consult_request' product.id %}"
+          data-alt-url="{% url 'shop:consult_request' product.id %}"
+          data-name="{{ product.name }}">
+          <i class="fa-solid fa-headset"></i> Tư vấn ngay
+        </button>
       </div>
     </aside>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<!-- Modal tư vấn (khách chưa đăng nhập) -->
+<div id="modalBackdrop" class="modal-backdrop" hidden></div>
+<div id="consultModal" class="modal" hidden>
+  <div class="consult-card">
+    <button class="c-close" id="consultClose" aria-label="Đóng">✕</button>
+    <div class="consult-grid">
+      <!-- LEFT: Info -->
+      <div class="c-left">
+        <h2>TIS Vietnam Insurance Broker</h2>
+
+        <div class="info-group">
+          <div class="info-item">
+            <h4>ADDRESS</h4>
+            <p>Suite 1101, 11th Floor, The Grace Tower
+71 Hoang Van Thai, Tan My Ward,
+Ho Chi Minh City, Vietnam</p>
+          </div>
+          <div class="info-item">
+            <h4>OPENING HOURS</h4>
+            <p>Mon – Fri: 8:30 AM – 6:00 PM
+Sat – Sun: Closed</p>
+          </div>
+          <div class="info-item">
+            <h4>E-MAIL</h4>
+            <p><a href="mailto:communication@tisbroker.com">communication@tisbroker.com</a></p>
+          </div>
+          <div class="info-item">
+            <h4>TEL</h4>
+            <p>+84 28 54 171 181</p>
+          </div>
+        </div>
+
+        <div class="c-photo">
+          <img src="{% static 'img/contact_fast.jpg' %}" alt="TIS office">
+        </div>
+      </div>
+
+      <!-- RIGHT: Form -->
+      <div class="c-right">
+        <h3>Get a Free Business<br/>Insurance Consultation!</h3>
+
+        <form id="consultForm" class="c-form">
+          <input class="pill" type="email" name="email" placeholder="Your Email (required)" required>
+          <input class="pill" type="text"  name="name"  placeholder="Name (required)" required>
+          <input class="pill" type="tel"   name="phone" placeholder="Phone (required)" required>
+          <input class="pill" type="text"  name="title" placeholder="Title (required)" required>
+          <textarea class="area" name="message" placeholder="Message (required)" required></textarea>
+
+          <div class="c-actions">
+            <button type="button" class="btn-cancel" id="consultCancel">Cancel</button>
+            <button type="submit" class="btn-submit">SUBMIT</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -141,39 +277,205 @@
 {% block extra_js %}
 <script>
 (function(){
-  // Slider tự động + thumbnail + pause on hover
-  const slider = document.getElementById('slider');
-  if(!slider) return;
+  // ====== FLAGS & HELPERS ======
+  const isAuth = {{ request.user.is_authenticated|yesno:"true,false" }};
+  const CART_URL = "{% url 'cart:cart_detail' %}";
+  const LOGIN_URL = "{% url 'accounts:login' %}";
+  const LOGIN_HINT = "/accounts/login";
 
-  const slides = Array.from(slider.querySelectorAll('img'));
-  const thumbsBox = document.getElementById('thumbs');
-  const thumbs = thumbsBox ? Array.from(thumbsBox.querySelectorAll('img')) : [];
-  if(slides.length <= 1) return;
+  const getCsrf = (window.__getCsrfToken)
+    ? window.__getCsrfToken
+    : function(){
+        const m = document.cookie.match(/csrftoken=([^;]+)/);
+        return m ? decodeURIComponent(m[1]) : "";
+      };
 
-  let idx = slides.findIndex(el => el.classList.contains('active'));
-  if(idx < 0) idx = 0;
-  const interval = parseInt(slider.dataset.interval || '3500', 10);
-
-  function show(i){
-    slides[idx].classList.remove('active');
-    if(thumbs[idx]) thumbs[idx].classList.remove('active');
-    idx = (i + slides.length) % slides.length;
-    slides[idx].classList.add('active');
-    if(thumbs[idx]) thumbs[idx].classList.add('active');
+  function showToast(msg, type){
+    const t = document.getElementById('toast');
+    if(!t) return;
+    t.className = 'toast ' + (type||'');
+    t.innerHTML = msg;
+    t.classList.add('show');
+    clearTimeout(t.__tid);
+    t.__tid = setTimeout(()=> t.classList.remove('show'), 3200);
   }
 
-  let timer = setInterval(() => show(idx + 1), interval);
+  function isLoginRedirect(res){
+    return !!(res && res.redirected && res.url && res.url.indexOf(LOGIN_HINT) !== -1);
+  }
 
-  slider.addEventListener('mouseenter', () => clearInterval(timer));
-  slider.addEventListener('mouseleave', () => { timer = setInterval(() => show(idx + 1), interval); });
+  // ====== SLIDER ======
+  (function(){
+    const slider = document.getElementById('slider');
+    if(!slider) return;
+    const slides = Array.from(slider.querySelectorAll('img'));
+    const thumbsBox = document.getElementById('thumbs');
+    const thumbs = thumbsBox ? Array.from(thumbsBox.querySelectorAll('img')) : [];
+    if(slides.length <= 1) return;
 
-  if(thumbs.length){
-    thumbs.forEach((t, i) => {
-      t.addEventListener('click', () => {
-        clearInterval(timer);
-        show(i);
-        timer = setInterval(() => show(idx + 1), interval);
+    let idx = Math.max(0, slides.findIndex(el => el.classList.contains('active')));
+    const interval = parseInt(slider.dataset.interval || '3500', 10);
+
+    function setActive(i){
+      slides[idx].classList.remove('active');
+      if(thumbs[idx]) thumbs[idx].classList.remove('active');
+      idx = (i + slides.length) % slides.length;
+      slides[idx].classList.add('active');
+      if(thumbs[idx]) thumbs[idx].classList.add('active');
+    }
+
+    let timer = setInterval(() => setActive(idx + 1), interval);
+    slider.addEventListener('mouseenter', () => clearInterval(timer));
+    slider.addEventListener('mouseleave', () => { timer = setInterval(() => setActive(idx + 1), interval); });
+
+    if(thumbs.length){
+      thumbs.forEach((t, i) => t.addEventListener('click', () => {
+        clearInterval(timer); setActive(i);
+        timer = setInterval(() => setActive(idx + 1), interval);
+      }));
+    }
+
+    window.addEventListener('keydown', (e)=>{
+      if(e.key === 'ArrowLeft'){ clearInterval(timer); setActive(idx - 1); }
+      if(e.key === 'ArrowRight'){ clearInterval(timer); setActive(idx + 1); }
+    });
+  })();
+
+  // ====== ADD TO CART ======
+  (function(){
+    document.querySelectorAll('.form-add-cart .btn-add-cart').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const form = btn.closest('.form-add-cart');
+        if(!form) return;
+
+        if(!isAuth){
+          // Chưa login: show thông báo NGAY, không reload
+          showToast('⚠️ Vui lòng <a href="'+ LOGIN_URL +'">đăng nhập</a> để thêm sản phẩm vào giỏ.', 'error');
+          return;
+        }
+
+        // Đã login: gọi AJAX
+        try{
+          const res = await fetch(form.action, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+            body: new FormData(form),
+            redirect: 'follow'
+          });
+
+          if(isLoginRedirect(res)) return location.href = res.url;
+
+          const type = res.headers.get('content-type') || '';
+          if(!res.ok){
+            showToast('Không thể thêm vào giỏ. Vui lòng thử lại.', 'error');
+            return;
+          }
+          if(type.includes('application/json')){
+            const data = await res.json().catch(()=> ({}));
+            if(typeof data.total_items !== 'undefined' && window.__updateCartBadge){ window.__updateCartBadge(data.total_items); }
+            showToast(data.message || 'Đã thêm vào giỏ hàng!', 'success');
+          }else{
+            location.href = CART_URL;
+          }
+        }catch(err){
+          console.error(err);
+          showToast('Có lỗi kết nối. Vui lòng thử lại sau.', 'error');
+        }
       });
+    });
+  })();
+
+  // ====== BUY NOW (AJAX nhẹ; server có thể redirect) ======
+  document.addEventListener('submit', async function(e){
+    const buyForm = e.target.closest('.form-buy-now');
+    if(!buyForm) return;
+    e.preventDefault();
+    try{
+      const res = await fetch(buyForm.action, {
+        method:'POST',
+        headers:{ 'X-CSRFToken': getCsrf(), 'X-Requested-With':'XMLHttpRequest' },
+        body:new FormData(buyForm),
+        redirect:'follow'
+      });
+      if(isLoginRedirect(res)) return location.href = res.url;
+      location.href = "{% url 'cart:cart_detail' %}";
+    }catch(err){
+      console.error(err);
+      location.href = "{% url 'cart:cart_detail' %}";
+    }
+  });
+
+  // ====== CONSULT (nếu chưa login -> mở modal; đã login -> gửi ngay) ======
+  const modal = document.getElementById('consultModal');
+  const backdrop = document.getElementById('modalBackdrop');
+  const formConsult = document.getElementById('consultForm');
+  const btnCancel = document.getElementById('consultCancel');
+  const btnClose  = document.getElementById('consultClose');
+
+  function openModal(){ modal.hidden=false; backdrop.hidden=false; modal.classList.add('show'); backdrop.classList.add('show'); }
+  function closeModal(){ modal.classList.remove('show'); backdrop.classList.remove('show'); setTimeout(()=>{ modal.hidden=true; backdrop.hidden=true; }, 160); }
+  backdrop.addEventListener('click', closeModal);
+  if(btnCancel) btnCancel.addEventListener('click', closeModal);
+  if(btnClose)  btnClose.addEventListener('click', closeModal);
+
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('.btn-consult');
+    if(!btn) return;
+
+    const url = btn.getAttribute('data-url');
+    const altUrl = btn.getAttribute('data-alt-url') || url; // endpoint public (nếu có)
+
+    if(isAuth){
+      // Đã login: gửi yêu cầu tư vấn ngay
+      fetch(url, { method:'POST', headers:{ 'X-CSRFToken': getCsrf(), 'X-Requested-With':'XMLHttpRequest' }, redirect:'follow' })
+        .then(res=>{
+          if(res.ok) showToast('Đã ghi nhận yêu cầu tư vấn. Chúng tôi sẽ liên hệ sớm.', 'success');
+          else showToast('Không thể gửi yêu cầu. Vui lòng thử lại.', 'error');
+        })
+        .catch(()=> showToast('Lỗi kết nối. Thử lại sau.', 'error'));
+      return;
+    }
+
+    // Chưa login: mở modal nhập nhanh
+    formConsult.dataset.post = altUrl;
+    openModal();
+  });
+
+  // Submit form tư vấn (khách chưa login)
+  if(formConsult){
+    formConsult.addEventListener('submit', async function(e){
+      e.preventDefault();
+      const url = formConsult.dataset.post || "{% url 'shop:consult_request' product.id %}";
+
+      const fd = new FormData(formConsult);
+      fd.append('product','{{ product.id }}'); // để backend biết đang tư vấn sản phẩm nào
+      fd.append('source','guest');
+
+      try{
+        const res = await fetch(url, {
+          method:'POST',
+          headers:{ 'X-CSRFToken': getCsrf(), 'X-Requested-With':'XMLHttpRequest' },
+          body: fd,
+          redirect:'follow'
+        });
+
+        closeModal();
+
+        const type = res.headers.get('content-type') || '';
+        let data = {};
+        if(type.includes('application/json')) data = await res.json().catch(()=>({}));
+
+        if(res.ok && (data.ok !== false)){
+          showToast(data.message || 'Đã nhận yêu cầu tư vấn. Chúng tôi sẽ liên hệ sớm.', 'success');
+          formConsult.reset();
+        }else{
+          showToast((data && data.message) || 'Không thể gửi yêu cầu. Vui lòng thử lại.', 'error');
+        }
+      }catch(err){
+        console.error(err);
+        closeModal();
+        showToast('Lỗi kết nối. Vui lòng thử lại sau.', 'error');
+      }
     });
   }
 })();

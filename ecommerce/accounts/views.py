@@ -19,11 +19,14 @@ from .models import Profile, ProfileImage
 # ----------------------------
 # Đăng ký tài khoản
 # ----------------------------
+# accounts/views.py
 from django.contrib import messages
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.shortcuts import render, redirect
+from django.urls import reverse
+
 from .forms import RegisterForm
 from .models import Profile
 
@@ -37,35 +40,25 @@ def register(request):
         if form.is_valid():
             username = (form.cleaned_data["username"] or "").strip()
             email = (form.cleaned_data["email"] or "").strip()
+            password = form.cleaned_data["password1"]
+            phone = (form.cleaned_data.get("phone") or "").strip()
 
-            # Kiểm tra trùng (không ném exception)
-            has_dup = False
-            if User.objects.filter(username__iexact=username).exists():
-                form.add_error("username", "Tên đăng nhập đã tồn tại.")
-                has_dup = True
-            if User.objects.filter(email__iexact=email).exists():
-                form.add_error("email", "Email đã tồn tại.")
-                has_dup = True
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    password=password,
+                )
+                # Profile đã được tạo bởi signal; chỉ cần gán phone nếu có
+                if phone:
+                    user.profile.phone = phone
+                    user.profile.save(update_fields=["phone"])
 
-            if has_dup:
-                messages.error(request, "Vui lòng sửa các lỗi bên dưới.")
-            else:
-                with transaction.atomic():
-                    user = User.objects.create_user(
-                        username=username,
-                        email=email,
-                        password=form.cleaned_data["password"],
-                    )
-                    profile, _ = Profile.objects.get_or_create(user=user)
-                    phone = form.cleaned_data.get("phone")
-                    if phone:
-                        profile.phone = phone
-                        profile.save()
-
-                login(request, user)
-                messages.success(request, "Tạo tài khoản thành công! 🎉")
-                return redirect("shop:product_list")   # về trang chủ
-        # form không hợp lệ sẽ rơi xuống render bên dưới
+            login(request, user)
+            messages.success(request, "Tạo tài khoản thành công! 🎉")
+            return redirect("shop:product_list")
+        else:
+            messages.error(request, "Vui lòng sửa các lỗi bên dưới.")
     else:
         form = RegisterForm()
 
@@ -79,22 +72,61 @@ def register(request):
 # ----------------------------
 # Đăng nhập
 # ----------------------------
+# accounts/views.py
+# accounts/views.py
+from django.contrib.auth import login
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.shortcuts import render, redirect
+from django.urls import reverse, NoReverseMatch
+from django.conf import settings
+
+def _try_reverse(candidates):
+    """Trả về URL đầu tiên reverse được trong danh sách tên URL; không có thì None."""
+    for name in candidates:
+        try:
+            return reverse(name)
+        except NoReverseMatch:
+            continue
+    return None
+
 def user_login(request):
+    next_url = request.GET.get('next') or request.POST.get('next') or settings.LOGIN_REDIRECT_URL
+
     if request.user.is_authenticated:
-        return redirect("accounts:profile")
+        return redirect(next_url)
 
-    if request.method == "POST":
-        username = (request.POST.get("username") or "").strip()
-        password = request.POST.get("password") or ""
-        user = authenticate(request, username=username, password=password)
-        if user is not None:
-            login(request, user)
-            next_url = request.GET.get("next") or reverse("shop:product_list")
+    if request.method == 'POST':
+        form = AuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            login(request, form.get_user())
             return redirect(next_url)
-        messages.error(request, "Sai tên đăng nhập hoặc mật khẩu.")
+    else:
+        form = AuthenticationForm(request)
 
-    return render(request, "accounts/login.html")
+    # ✅ KHÔNG dùng resolver_match nữa
+    password_reset_url = _try_reverse(['accounts:password_reset', 'password_reset'])
 
+    ctx = {
+        'form': form,
+        'password_reset_url': password_reset_url,
+    }
+    return render(request, 'accounts/login.html', ctx)
+
+def register(request):
+    # Nếu có RegisterForm riêng thì import vào và thay FormClass
+    FormClass = UserCreationForm
+
+    if request.method == 'POST':
+        form = FormClass(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            next_url = request.GET.get('next') or request.POST.get('next') or settings.LOGIN_REDIRECT_URL
+            return redirect(next_url)
+    else:
+        form = FormClass()
+
+    return render(request, 'accounts/register.html', {'form': form})
 
 # ----------------------------
 # Đăng xuất
@@ -108,51 +140,206 @@ def user_logout(request):
 
 # ----------------------------
 # Hồ sơ người dùng
-# - Cho phép đổi Họ/Tên và Avatar
-# - Cho phép thêm NHIỀU ảnh vào thư viện (gallery)
-# - KHÔNG cho đổi email và SĐT (không có trong form)
-# ----------------------------
+
+
+def _safe_avatar_url(user):
+    try:
+        av = getattr(getattr(user, "profile", None), "avatar", None)
+        return av.url if av and hasattr(av, "url") else ""
+    except Exception:
+        return ""
+
+
+# ---------- Helpers cho Phone ----------
+import re
+
+_PHONE_ALLOWED_RE = re.compile(r"^[0-9+\s\-\.\(\)]+$")
+
+
+def normalize_phone(raw: str) -> str:
+    """
+    Chuẩn hoá SĐT:
+    - Giữ dấu + nếu đứng đầu; còn lại bỏ mọi ký tự không phải số.
+    - Bỏ khoảng trắng, -, ., (, ).
+    - Ví dụ: "+84 912-345-678" -> "+84912345678"
+             "0912 345 678"   -> "0912345678"
+    """
+    if not raw:
+        return ""
+    raw = raw.strip()
+
+    plus = raw.startswith("+")
+    # loại bỏ tất cả ký tự không phải 0-9
+    digits = re.sub(r"[^0-9]", "", raw)
+
+    # giữ + ở đầu nếu ban đầu có
+    return ("+" + digits) if plus and digits else digits
+
+
+def validate_phone(raw: str):
+    """
+    Trả về (ok: bool, message: str).
+    Quy tắc:
+      - Chỉ cho phép các ký tự: 0-9, +, khoảng trắng, -, ., (, )
+      - Sau chuẩn hoá, số chữ số (bỏ +) phải từ 8..15 là hợp lý (tuỳ chỉnh).
+    """
+    if not raw:
+        return False, "Vui lòng nhập số điện thoại."
+
+    if not _PHONE_ALLOWED_RE.match(raw):
+        return False, "Số điện thoại chứa ký tự không hợp lệ."
+
+    normalized = normalize_phone(raw)
+
+    # số chữ số (không tính +)
+    digits_only = normalized[1:] if normalized.startswith("+") else normalized
+
+    if not (8 <= len(digits_only) <= 15):
+        return False, "Số điện thoại phải có từ 8 đến 15 chữ số."
+
+    return True, ""
+
+
+def phone_exists_for_other_user(user, normalized_phone: str) -> bool:
+    """
+    Kiểm tra trùng SĐT trên:
+      - Profile.phone của người khác
+      - (Tuỳ dự án) User.phone nếu tồn tại field đó
+    """
+    # Trùng ở Profile.phone
+    if hasattr(Profile, "phone"):
+        if Profile.objects.filter(phone=normalized_phone).exclude(user=user).exists():
+            return True
+
+    # Trùng ở User.phone nếu dự án có field này
+    if hasattr(user.__class__, "phone"):
+        if user.__class__.objects.filter(phone=normalized_phone).exclude(pk=user.pk).exists():
+            return True
+
+    return False
+
+# accounts/views.py
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.shortcuts import redirect, render
+from django.templatetags.static import static  # ⬅ cần cho avatar_fallback
+from .forms import UserNamesForm, ProfileAvatarForm
+from cart.models import Order
+
+def _safe_avatar_url(user):
+    """Trả về URL avatar nếu có, nếu lỗi thì chuỗi rỗng."""
+    try:
+        av = getattr(getattr(user, "profile", None), "avatar", None)
+        return av.url if av and hasattr(av, "url") else ""
+    except Exception:
+        return ""
+
 @login_required
+@transaction.atomic
 def profile(request):
-    profile_obj, _ = Profile.objects.get_or_create(user=request.user)
+    user = request.user
+
+    # --- Forms mặc định ---
+    name_form = UserNamesForm(instance=user)
+    avatar_form = ProfileAvatarForm(instance=user.profile)
 
     if request.method == "POST":
-        name_form = UserNamesForm(request.POST, instance=request.user)
-        avatar_form = ProfileAvatarForm(request.POST, request.FILES, instance=profile_obj)
-        photos_form = ProfilePhotosForm(request.POST, request.FILES)
+        action = request.POST.get("action")
 
-        if name_form.is_valid() and avatar_form.is_valid() and photos_form.is_valid():
-            with transaction.atomic():
-                # LƯU họ tên
+        # ======= AVATAR =======
+        if action == "save_avatar":
+            avatar_form = ProfileAvatarForm(
+                request.POST, request.FILES, instance=user.profile
+            )
+            if avatar_form.is_valid():
+                avatar_form.save()
+                messages.success(request, "Ảnh đại diện đã được cập nhật.")
+                return redirect("accounts:profile")
+            else:
+                messages.error(request, "Không thể cập nhật ảnh đại diện. Vui lòng thử lại.")
+
+        # ======= PROFILE (Họ tên + SĐT nếu CHƯA có) =======
+        elif action == "save_profile":
+            name_form = UserNamesForm(request.POST, instance=user)
+            post_phone_raw = (request.POST.get("phone") or "").strip()
+
+            # Kiểm tra form họ tên trước
+            if not name_form.is_valid():
+                messages.error(request, "Dữ liệu không hợp lệ, vui lòng kiểm tra lại.")
+            else:
+                # Lưu họ tên
                 name_form.save()
 
-                # LƯU avatar
-                avatar_form.save()
+                # Chỉ xử lý phone nếu người dùng CHƯA có sđt trước đó và form có ô nhập (theo template)
+                profile_obj = getattr(user, "profile", None)
+                current_phone = ""
+                if profile_obj and hasattr(profile_obj, "phone") and profile_obj.phone:
+                    current_phone = profile_obj.phone
+                elif hasattr(user, "phone") and user.phone:
+                    current_phone = user.phone
 
-                # THÊM nhiều ảnh gallery
-                for f in request.FILES.getlist("photos"):
-                    ProfileImage.objects.create(profile=profile_obj, image=f)
+                # Nếu chưa có phone, cho phép set mới (và validate + check trùng)
+                if not (current_phone or "").strip() and post_phone_raw:
+                    ok, msg = validate_phone(post_phone_raw)
+                    if not ok:
+                        messages.error(request, msg)
+                        # rollback phần họ tên? tuỳ, ở đây vẫn cho lưu họ tên nhưng báo lỗi SĐT
+                        return redirect("accounts:profile")
 
-            messages.success(request, "Cập nhật hồ sơ thành công.")
-            return redirect("accounts:profile")
-        else:
-            messages.error(request, "Có lỗi, vui lòng kiểm tra lại biểu mẫu.")
-    else:
-        name_form = UserNamesForm(instance=request.user)
-        avatar_form = ProfileAvatarForm(instance=profile_obj)
-        photos_form = ProfilePhotosForm()
+                    normalized = normalize_phone(post_phone_raw)
+
+                    if phone_exists_for_other_user(user, normalized):
+                        messages.error(request, "Số điện thoại đã được sử dụng")
+                        return redirect("accounts:profile")
+
+                    # Lưu phone vào Profile nếu có field, ngược lại lưu vào User (nếu có)
+                    if profile_obj and hasattr(profile_obj, "phone"):
+                        profile_obj.phone = normalized
+                        profile_obj.save(update_fields=["phone"])
+                    elif hasattr(user, "phone"):
+                        user.phone = normalized
+                        user.save(update_fields=["phone"])
+
+                messages.success(request, "Cập nhật thông tin cá nhân thành công.")
+                return redirect("accounts:profile")
+
+        # Nếu POST không khớp action: bỏ qua
+
+    # --- Lịch sử đơn hàng ---
+    qs = (
+        Order.objects.filter(user=user)
+        .prefetch_related("items__product")
+        .order_by("-created_at")
+    )
+
+    status = (request.GET.get("status") or "").upper().strip()
+    valid_statuses = {s for s, _ in Order.Status.choices}
+    if status in valid_statuses:
+        qs = qs.filter(status=status)
+
+    paginator = Paginator(qs, 10)
+    page = request.GET.get("page") or 1
+    orders = paginator.get_page(page)
+
+    # Hiển thị phone ưu tiên ở Profile > User
+    prof_phone = getattr(getattr(user, "profile", None), "phone", "") or ""
+    user_phone = getattr(user, "phone", "") or ""
+    phone_display = prof_phone or user_phone
 
     context = {
         "name_form": name_form,
         "avatar_form": avatar_form,
-        "photos_form": photos_form,
-        # Hiển thị read-only (KHÔNG cho sửa):
-        "email": request.user.email,
-        "phone": profile_obj.phone or "",
-        # Thư viện ảnh
-        "photos": profile_obj.photos.all().order_by("-uploaded_at"),
+        "email": getattr(user, "email", "") or "",
+        "phone": phone_display,
+        "orders": orders,
+        "current_status": status,
+        "all_statuses": Order.Status.choices,
+        "avatar_url": _safe_avatar_url(user),
+        "avatar_fallback": static("img/placeholder-avatar.png"),
     }
     return render(request, "accounts/profile.html", context)
+
 
 
 # ----------------------------

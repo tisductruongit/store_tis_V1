@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Khách cần tư vấn{% endblock %}
+
+{% block extra_head %}
+<style>
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0 14px}
+  .tab{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;font-weight:600}
+  .tab:hover{box-shadow:var(--shadow)}
+  .tab.active{border-color:var(--brand);color:var(--brand)}
+  .table-wrap{overflow:auto;border-radius:14px}
+  table.table{width:100%;border-collapse:separate;border-spacing:0}
+  .table thead th{position:sticky;top:0;z-index:1;background:#f9fafb;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.35px}
+  .table th,.table td{padding:12px 14px;border-bottom:1px solid #f1f5f9;vertical-align:top;text-align:left}
+  .table tbody tr:hover{background:#fcfcfd}
+  .nowrap{white-space:nowrap}
+
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-weight:700;font-size:12px}
+  .badge i{font-size:12px}
+  .badge-pending{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+  .badge-done{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
+
+  .note-input{width:100%;max-width:260px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;outline:none}
+  .note-input:focus{border-color:var(--brand);box-shadow:0 0 0 2px rgba(225,29,72,.12)}
+
+  .qty-input{width:86px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;outline:none;text-align:right}
+  .qty-input:focus{border-color:var(--brand);box-shadow:0 0 0 2px rgba(225,29,72,.12)}
+
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:#fff;cursor:pointer}
+  .btn i{font-size:14px}
+  .btn-create{background:#111827;color:#fff;border-color:#111827}
+  .btn-create:hover{filter:brightness(1.05)}
+  .btn-mark{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 4px 14px rgba(225,29,72,.18)}
+  .btn-mark:hover{background:var(--brand-600);border-color:var(--brand-600)}
+
+  .actions{display:flex;gap:10px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+  .empty{color:#6b7280;text-align:center;padding:26px 12px}
+  .pager{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:12px}
+  .pager a,.pager span{padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .pager .current{border-color:var(--brand);color:var(--brand);font-weight:700}
+  @media (max-width:760px){ .table th:nth-child(5), .table td:nth-child(5){display:none} }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+  <h1 style="margin-right:auto">Yêu cầu tư vấn</h1>
+</div>
+
+<div class="toolbar">
+  <a class="tab {% if status == 'pending' %}active{% endif %}" href="{% url 'shop:consult_list' %}?status=pending">
+    <i class="fa-regular fa-clock"></i> Đang chờ
+  </a>
+  <a class="tab {% if status == 'done' %}active{% endif %}" href="{% url 'shop:consult_list' %}?status=done">
+    <i class="fa-regular fa-circle-check"></i> Đã xử lý
+  </a>
+</div>
+
+<div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th class="nowrap">Thời gian</th>
+          <th>Khách hàng</th>
+          <th>SĐT</th>
+          <th>Sản phẩm</th>
+          <th>Ghi chú</th>
+          <th>Trạng thái</th>
+          <th>Xử lý bởi</th>
+          <th style="width:1%"></th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        {% for r in items %}
+        <tr id="row-{{ r.id }}">
+          <td class="nowrap">{{ r.created_at|date:"H:i d/m/Y" }}</td>
+          <td>{{ r.user.username }}</td>
+          <td class="nowrap">{{ r.customer_phone|default:"—" }}</td>
+          <td><a href="{{ r.product.get_absolute_url }}">{{ r.product.name }}</a></td>
+
+          <td id="note-{{ r.id }}">
+            {% if r.status == 'pending' %}
+              <input type="text" class="note-input" name="note" value="{{ r.note }}" placeholder="Nhập ghi chú…">
+            {% else %}
+              <span class="muted">{{ r.note|default:"—" }}</span>
+            {% endif %}
+          </td>
+
+          <td id="st-{{ r.id }}">
+            {% if r.status == 'pending' %}
+              <span class="badge badge-pending"><i class="fa-regular fa-clock"></i> Chờ tư vấn</span>
+            {% else %}
+              <span class="badge badge-done"><i class="fa-regular fa-circle-check"></i> Đã tư vấn</span>
+            {% endif %}
+          </td>
+
+          <td id="hb-{{ r.id }}">
+            {% if r.status == 'done' %}
+              {{ r.handled_by.username|default:"—" }}{% if r.handled_at %} <small class="muted">( {{ r.handled_at|date:"H:i d/m/Y" }} )</small>{% endif %}
+            {% else %}—{% endif %}
+          </td>
+
+          <td>
+            <div class="actions">
+              {% if r.status == 'pending' %}
+              <!-- Tạo đơn cho user này -->
+              <form class="js-create-order" action="{% url 'shop:consult_create_order' r.id %}" method="post" style="display:flex;gap:8px;align-items:center">
+                {% csrf_token %}
+                <input class="qty-input" type="number" name="qty" min="1" value="1" title="Số lượng">
+                <button class="btn btn-create" type="submit" title="Tạo đơn nháp cho khách này">
+                  <i class="fa-solid fa-bag-shopping"></i> Tạo đơn
+                </button>
+              </form>
+
+              <!-- Đánh dấu đã tư vấn -->
+              <form class="js-mark-done" action="{% url 'shop:consult_mark_done' r.id %}" method="post">
+                {% csrf_token %}
+                <button class="btn btn-mark" type="submit"><i class="fa-solid fa-check"></i> Đã tư vấn</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="empty">Chưa có yêu cầu nào.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const getCSRF = (window.__getCsrfToken) ? window.__getCsrfToken : function(){
+    const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? decodeURIComponent(m[1]) : "";
+  };
+  const toast = (opts)=> window.__showToast ? __showToast(opts) : (opts && opts.text ? alert(opts.text) : null);
+
+  // Đánh dấu ĐÃ TƯ VẤN (gửi kèm ghi chú)
+  document.addEventListener('submit', async (e)=>{
+    const f = e.target.closest('.js-mark-done');
+    if(!f) return;
+    e.preventDefault();
+
+    const row = f.closest('tr');
+    const id = row ? row.id.replace('row-','') : null;
+    const noteInput = row ? row.querySelector('input[name="note"]') : null;
+    const noteVal = noteInput ? noteInput.value.trim() : '';
+
+    if(!confirm('Xác nhận đã tư vấn yêu cầu này?')) return;
+
+    try{
+      const fd = new FormData(f);
+      if(noteInput) fd.set('note', noteVal);
+
+      const res = await fetch(f.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With':'XMLHttpRequest', 'X-CSRFToken': getCSRF() },
+        body: fd
+      });
+      if(!res.ok) throw new Error('bad status');
+
+      // Update UI
+      if(id){
+        const st = document.getElementById('st-'+id);
+        const hb = document.getElementById('hb-'+id);
+        const nt = document.getElementById('note-'+id);
+        if(st) st.innerHTML = '<span class="badge badge-done"><i class="fa-regular fa-circle-check"></i> Đã tư vấn</span>';
+        if(hb) hb.innerHTML = '{{ request.user.username|escapejs }} <small class="muted">(vừa xong)</small>';
+        if(nt) nt.innerHTML = noteVal ? noteVal : '<span class="muted">—</span>';
+        f.remove();
+        row.style.transition='background .6s ease'; row.style.background='#ecfdf5';
+        setTimeout(()=>row.style.background='', 800);
+      }
+      toast({title:'Đã cập nhật', text:'Đã đánh dấu ĐÃ tư vấn' + (noteVal ? ' (đã lưu ghi chú).' : '.'), type:'success', timeout:2600});
+    }catch(err){
+      console.error(err); f.submit(); // fallback
+    }
+  });
+
+  // TẠO ĐƠN từ yêu cầu (gửi kèm SỐ LƯỢNG và ghi chú nếu nhập)
+  document.addEventListener('submit', async (e)=>{
+    const f = e.target.closest('.js-create-order');
+    if(!f) return;
+    e.preventDefault();
+
+    const row = f.closest('tr');
+    const noteInput = row ? row.querySelector('input[name="note"]') : null;
+    const noteVal = noteInput ? noteInput.value.trim() : '';
+
+    try{
+      const fd = new FormData(f);
+      if(noteVal) fd.set('note', noteVal);
+
+      const res = await fetch(f.action, {
+        method:'POST',
+        headers:{ 'X-Requested-With':'XMLHttpRequest', 'X-CSRFToken': getCSRF() },
+        body: fd
+      });
+      const data = await res.json().catch(()=>({}));
+      if(res.ok && data.ok){
+        toast({
+          title:'Đã tạo đơn',
+          text: data.message || ('Đã tạo đơn #' + data.order_id),
+          type:'success',
+          timeout:3200,
+          actionText:'Xem đơn',
+          actionHref:data.url
+        });
+        // mở tab chi tiết đơn (nếu muốn)
+        // window.open(data.url, '_blank');
+      }else{
+        throw new Error();
+      }
+    }catch(err){
+      console.error(err);
+      alert('Không tạo được đơn. Vui lòng thử lại.');
+    }
+  });
+})();
+</script>
+{% endblock %}

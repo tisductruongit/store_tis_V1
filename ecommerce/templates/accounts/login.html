@@ -1,11 +1,159 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+{% load static %}
+{% load socialaccount %}
+
 {% block title %}Đăng nhập{% endblock %}
+
 {% block content %}
-<h1>Đăng nhập</h1>
-<form method="post">{% csrf_token %}
-  <p><label>Username</label><input name="username"></p>
-  <p><label>Password</label><input type="password" name="password"></p>
-  <button class="btn btn-outline type="submit">Đăng nhập</button>
-  
-</form>
+<main class="container" style="max-width:720px;margin:32px auto">
+
+  {# ====== CASE 1: Cần hoàn tất hồ sơ sau social login (thiếu phone) ====== #}
+  {% if needs_profile %}
+    <h1 style="margin:0 0 12px 0;">Hoàn tất hồ sơ</h1>
+    <p class="mb-3" style="color:#475569">
+      Chúng tôi nhận thấy tài khoản của bạn chưa có số điện thoại.
+      Vui lòng bổ sung để tiếp tục.
+    </p>
+
+    <form method="post"
+          action="{% url 'accounts:complete_profile' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}"
+          class="card"
+          style="padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;">
+      {% csrf_token %}
+
+      <div class="form-group mb-3">
+        <label for="id_full_name">Họ và tên</label>
+        <input type="text" name="full_name" id="id_full_name"
+               class="input" required
+               value="{{ social_name|default:'' }}"
+               placeholder="Nguyễn Văn A">
+      </div>
+
+      <div class="form-group mb-3">
+        <label for="id_phone">Số điện thoại</label>
+        <input type="tel" name="phone" id="id_phone"
+               class="input" required
+               pattern="^(0|\+84)([1-9][0-9]{8})$"
+               inputmode="tel"
+               placeholder="0xxxxxxxxx hoặc +84xxxxxxxxx">
+        <small class="hint">Định dạng hợp lệ: 0xxxxxxxxx hoặc +84xxxxxxxxx</small>
+      </div>
+
+      {# bảo toàn email social, provider và next #}
+      <input type="hidden" name="email" value="{{ social_email|default:'' }}">
+      <input type="hidden" name="provider" value="{{ social_provider|default:'' }}">
+
+      {% if request.GET.next %}
+        <input type="hidden" name="next" value="{{ request.GET.next }}">
+      {% endif %}
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
+        <button type="submit" class="btn btn-primary">Lưu &amp; tiếp tục</button>
+        <a href="{% url 'accounts:logout' %}" class="btn btn-light">Đăng nhập tài khoản khác</a>
+      </div>
+    </form>
+
+    <script>
+      // Nhắc người dùng nếu format phone sai trước khi submit
+      (function(){
+        const f = document.querySelector('form');
+        const phone = document.getElementById('id_phone');
+        f.addEventListener('submit', function(e){
+          if(!phone.checkValidity()){
+            e.preventDefault();
+            phone.reportValidity();
+          }
+        });
+      })();
+    </script>
+
+  {% else %}
+  {# ====== CASE 2: Flow đăng nhập bình thường ====== #}
+    <h1 style="margin:0 0 12px 0;">Đăng nhập</h1>
+
+    {% if messages %}
+      <div style="margin:12px 0">
+        {% for message in messages %}
+          <div class="alert {{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post"
+          action="{% url 'accounts:login' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}"
+          novalidate
+          class="card"
+          style="padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;">
+      {% csrf_token %}
+
+      {% if form and form.non_field_errors %}
+        <div class="alert alert-error" style="margin-bottom:12px;">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label for="id_username">Tên đăng nhập hoặc Email</label>
+        {% if form and form.username %}
+          {{ form.username }}
+          {% if form.username.errors %}
+            <div class="text-error">{{ form.username.errors }}</div>
+          {% endif %}
+        {% else %}
+          <input type="text" name="username" id="id_username" class="input" required>
+        {% endif %}
+      </div>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label for="id_password">Mật khẩu</label>
+        {% if form and form.password %}
+          {{ form.password }}
+          {% if form.password.errors %}
+            <div class="text-error">{{ form.password.errors }}</div>
+          {% endif %}
+        {% else %}
+          <input type="password" name="password" id="id_password" class="input" required>
+        {% endif %}
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
+        <button type="submit" class="btn btn-primary">Đăng nhập</button>
+        <a href="{% url 'accounts:register' %}" class="btn btn-outline">Tạo tài khoản</a>
+        {% if password_reset_url %}
+          <a href="{{ password_reset_url }}" class="btn btn-link">Quên mật khẩu?</a>
+        {% endif %}
+      </div>
+
+      {% if request.GET.next %}
+        <input type="hidden" name="next" value="{{ request.GET.next }}">
+      {% endif %}
+    </form>
+
+    <div style="display:flex;align-items:center;gap:12px;margin:18px 0;">
+      <div style="height:1px;background:#e5e7eb;flex:1"></div>
+      <div style="opacity:.6;font-size:13px;">Hoặc đăng nhập nhanh</div>
+      <div style="height:1px;background:#e5e7eb;flex:1"></div>
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <form method="post" action="{% provider_login_url 'google' process='login' %}">
+        {% csrf_token %}
+        {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
+        <button type="submit" class="btn" style="display:inline-flex;align-items:center;gap:10px;border:1px solid #e5e7eb;border-radius:10px;padding:10px 14px;background:#fff">
+          <img src="{% static 'icon/google.jpg' %}" alt="Google" width="18" height="18">
+          <span>Google</span>
+        </button>
+      </form>
+
+      <form method="post" action="{% provider_login_url 'microsoft' process='login' %}">
+        {% csrf_token %}
+        {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
+        <button type="submit" class="btn" style="display:inline-flex;align-items:center;gap:10px;border:1px solid #e5e7eb;border-radius:10px;padding:10px 14px;background:#fff">
+          <img src="{% static 'icon/outlook.png' %}" alt="Microsoft" width="18" height="18">
+          <span>Outlook</span>
+        </button>
+      </form>
+    </div>
+  {% endif %}
+</main>
 {% endblock %}

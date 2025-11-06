@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+{% load static l10n %}
+
+{% block title %}Giỏ hàng{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <h1 style="margin:0 0 12px 0;display:flex;align-items:center;gap:8px">
+      Giỏ hàng
+      <span class="badge" id="badgeCount">{{ cart_obj|length }}</span>
+    </h1>
+
+    {% if cart_obj|length == 0 %}
+      <div class="alert alert-error center">Giỏ hàng đang trống.</div>
+      <a href="{% url 'shop:product_list' %}" class="btn btn-outline mt-3">Tiếp tục mua sắm</a>
+    {% else %}
+
+    <div class="grid" style="display:grid;grid-template-columns:1fr 330px;gap:16px">
+      <!-- Bảng sản phẩm -->
+      <div class="card" style="overflow:auto">
+        <table id="cartTable">
+          <thead>
+            <tr>
+              <th style="width:36px"><input type="checkbox" id="selectAll"></th>
+              <th style="width:50%">Sản phẩm</th>
+              <th>Đơn giá</th>
+              <th style="width:160px">Số lượng</th>
+              <th>Thành tiền</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in cart_obj %}
+              <tr class="cart-row"
+                  data-product-id="{{ item.product.id }}"
+                  data-line-total="{% localize off %}{{ item.total_price|floatformat:2 }}{% endlocalize %}">
+                <td><input type="checkbox" class="select-item"></td>
+                <td>
+                  <div style="display:flex;gap:12px;align-items:center">
+                    {% with img=item.product.image %}
+                      {% if img %}
+                        <img src="{{ img.url }}" alt="{{ item.product.name }}"
+                             style="width:64px;height:64px;object-fit:cover;border-radius:12px">
+                      {% else %}
+                        <img src="{% static 'img/placeholder.png' %}" alt="{{ item.product.name }}"
+                             style="width:64px;height:64px;object-fit:cover;border-radius:12px">
+                      {% endif %}
+                    {% endwith %}
+                    <div>
+                      <div style="font-weight:800">
+                        <a href="{{ item.product.get_absolute_url }}">{{ item.product.name }}</a>
+                      </div>
+                      <div class="muted">Mã: #{{ item.product.id }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="price">{{ item.price|floatformat:2 }}₫</td>
+                <td>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <button type="button" class="btn btn-light btn-qty" data-action="dec" aria-label="Giảm">−</button>
+                    <input class="qty-input" type="number" min="1" value="{{ item.quantity }}"
+                           style="width:72px;text-align:center">
+                    <button type="button" class="btn btn-light btn-qty" data-action="inc" aria-label="Tăng">+</button>
+                  </div>
+                </td>
+                <td class="price line-total">{{ item.total_price|floatformat:2 }}₫</td>
+                <td>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <button class="btn btn-light btn-consult" type="button">Yêu cầu tư vấn</button>
+                    <button class="btn btn-outline btn-remove" type="button">Xóa</button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Tóm tắt: CHỈ tính các mục đã chọn -->
+      <aside class="card" style="padding:14px;position:sticky;top:14px;height:max-content">
+        <h3 style="margin:0 0 10px 0">Tóm tắt</h3>
+        <div class="row" style="display:flex;justify-content:space-between;align-items:center">
+          <div class="muted">Tổng cộng (đã chọn <span id="selectedCount">0</span>)</div>
+          <div style="font-weight:800;font-size:18px">
+            <span id="selectedTotal">0.00</span>₫
+          </div>
+        </div>
+
+        <button id="btnCheckoutSelected" class="btn btn-primary mt-3" style="width:100%" disabled>
+          Thanh toán mục đã chọn
+        </button>
+        <a href="{% url 'shop:product_list' %}" class="btn btn-outline mt-2" style="width:100%">Tiếp tục mua sắm</a>
+      </aside>
+    </div>
+    {% endif %}
+  </div>
+</main>
+
+<!-- Modal: Yêu cầu tư vấn (auto điền Họ tên & SĐT nếu đã đăng nhập) -->
+<div class="modal" id="consultModal" style="position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.45);z-index:50">
+  <div class="card" style="width:min(520px,92vw);padding:16px">
+    <h3 style="margin:0 0 8px 0">Yêu cầu tư vấn</h3>
+    <div class="muted" id="consultProductLabel"></div>
+
+    <form id="consultForm" class="mt-3">
+      <input type="hidden" name="product_id" id="consultProductId">
+
+      {% if request.user.is_authenticated %}
+        {% with fullname=request.user.get_full_name|default:request.user.username phone=request.user.profile.phone|default:'' %}
+          <input type="hidden" name="name" id="consultName" value="{{ fullname }}">
+          <input type="hidden" name="phone" id="consultPhone" value="{{ phone }}">
+          <div class="muted" style="margin-bottom:6px">
+            Khách hàng: <strong>{{ fullname }}</strong> &middot; ĐT: <strong>{{ phone }}</strong>
+          </div>
+        {% endwith %}
+      {% else %}
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px">
+            <label>Họ và tên</label>
+            <input type="text" name="name" id="consultName" placeholder="Nguyễn Văn A" required>
+          </div>
+          <div style="flex:1;min-width:220px">
+            <label>Số điện thoại</label>
+            <input type="tel" name="phone" id="consultPhone" placeholder="09xxxxxxxx" required>
+          </div>
+        </div>
+      {% endif %}
+
+      <label class="mt-3">Nội dung cần tư vấn</label>
+      <textarea name="note" id="consultNote" placeholder="Ví dụ: Tư vấn chọn size, màu, cách sử dụng..." required></textarea>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px" class="mt-3">
+        <button type="button" class="btn btn-light" id="consultCancel">Hủy</button>
+        <button type="submit" class="btn btn-primary">Gửi yêu cầu</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Xác nhận đặt hàng -->
+<div class="modal" id="confirmModal" style="position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.45);z-index:60">
+  <div class="card" style="width:min(640px,92vw);padding:16px">
+    <h3 style="margin:0 0 8px 0">Xác nhận đặt hàng</h3>
+    <div class="muted">Bạn sắp đặt hàng các mục đã chọn:</div>
+
+    <div style="max-height:320px;overflow:auto;margin-top:10px">
+      <table style="width:100%">
+        <thead>
+          <tr>
+            <th>Sản phẩm</th>
+            <th style="text-align:right">SL</th>
+            <th style="text-align:right">Thành tiền</th>
+          </tr>
+        </thead>
+        <tbody id="confirmItems"></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="2" style="text-align:right"><strong>Tổng cộng</strong></td>
+            <td style="text-align:right"><strong><span id="confirmTotal">0.00</span>₫</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="muted" style="margin-top:8px">Vui lòng kiểm tra lại trước khi xác nhận.</div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px">
+      <button class="btn btn-light" id="confirmCancel">Hủy</button>
+      <button class="btn btn-primary" id="confirmSubmit">Xác nhận đặt hàng</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===== CSRF =====
+  function getCookie(name){
+    let v=null; if(document.cookie && document.cookie!==''){
+      const parts=document.cookie.split(';');
+      for(const c of parts){ const k=c.trim(); if(k.substring(0,name.length+1)===(name+'=')){ v=decodeURIComponent(k.substring(name.length+1)); break; } }
+    } return v;
+  }
+
+  // ===== Helpers =====
+  const $ = (sel, root=document)=>root.querySelector(sel);
+  const $$ = (sel, root=document)=>Array.from(root.querySelectorAll(sel));
+  function fmtVND(n){ try{ return Number(n).toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:2}); }catch(_){ return n; } }
+  function toNumber(x){
+    let s = String(x ?? '').trim();
+    if (/,/.test(s) && /\.\d{3}/.test(s)) { s = s.replace(/\./g,'').replace(',', '.'); }
+    else { s = s.replace(/,/g, '.'); }
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  // ===== Selection totals (ONLY selected) =====
+  function recomputeSelection(){
+    const rows = $$('.cart-row');
+    let cnt = 0, sum = 0;
+    rows.forEach(r=>{
+      const cb = $('.select-item', r);
+      if(cb && cb.checked){
+        cnt += 1;
+        sum += toNumber(r.dataset.lineTotal || '0');
+      }
+    });
+    $('#selectedCount').textContent = String(cnt);
+    $('#selectedTotal').textContent = fmtVND(sum);
+    $('#btnCheckoutSelected').disabled = (cnt === 0);
+
+    const all = $$('.select-item');
+    const selAll = $('#selectAll');
+    if(selAll){
+      selAll.checked = (all.length>0 && all.every(x => x.checked));
+      selAll.indeterminate = (cnt>0 && cnt<all.length);
+    }
+  }
+
+  // ===== AJAX: Update quantity =====
+  async function updateQuantity(row, newQty){
+    const pid = row?.dataset.productId;
+    if(!pid) return;
+
+    const url = "{% url 'cart:cart_update' 0 %}".replace('/0/','/'+pid+'/');
+    const form = new FormData(); form.append('quantity', newQty);
+    await fetch(url, { method:'POST',
+      headers:{ 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With':'XMLHttpRequest'},
+      body: form
+    });
+
+
+    const res = await fetch(url, {
+      method:'POST',
+      headers:{ 'X-CSRFToken':getCookie('csrftoken'), 'X-Requested-With':'XMLHttpRequest' },
+      body: form
+    });
+    const data = await res.json();
+
+    if(!data.ok){
+      if(data.require_login && data.redirect){ location.href = data.redirect; return; }
+      alert(data.message || 'Không cập nhật được số lượng.');
+      return;
+    }
+
+    row.querySelector('.qty-input').value = data.quantity;
+    row.dataset.lineTotal = String(data.line_total);
+    row.querySelector('.line-total').textContent = fmtVND(data.line_total) + '₫';
+
+    const badge = $('#badgeCount'); if(badge) badge.textContent = data.total_items;
+
+    if(data.quantity === 0){
+      row.remove();
+      if($$('.cart-row').length === 0){
+        $('#cartTable')?.remove();
+        const d = document.createElement('div');
+        d.className = 'alert alert-error center';
+        d.textContent = 'Giỏ hàng đang trống.';
+        document.querySelector('.container').appendChild(d);
+      }
+    }
+    recomputeSelection();
+  }
+
+  // ===== AJAX: Remove item =====
+  async function removeItem(row){
+    const pid = row?.dataset.productId; if(!pid) return;
+    const url = "{% url 'cart:cart_remove' 0 %}".replace('/0/','/'+pid+'/');
+    const res = await fetch(url, {
+      method:'POST',
+      headers:{ 'X-CSRFToken':getCookie('csrftoken'), 'X-Requested-With':'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if(!data.ok){ alert(data.message || 'Không xóa được sản phẩm.'); return; }
+
+    row.remove();
+    const badge = $('#badgeCount'); if(badge) badge.textContent = data.total_items;
+
+    if($$('.cart-row').length === 0){
+      $('#cartTable')?.remove();
+      const d = document.createElement('div');
+      d.className = 'alert alert-error center';
+      d.textContent = 'Giỏ hàng đang trống.';
+      document.querySelector('.container').appendChild(d);
+    }
+    recomputeSelection();
+  }
+
+  // ===== Build selected items for checkout & confirm modal =====
+  function getSelectedItems(){
+    return $$('.cart-row')
+      .filter(r => $('.select-item', r)?.checked)
+      .map(r => {
+        const product_id = Number(r.dataset.productId);
+        const quantity   = Number($('.qty-input', r)?.value || '1');
+        const name       = r.querySelector('td a')?.textContent?.trim() || 'Sản phẩm';
+        const line_total = toNumber(r.dataset.lineTotal || '0');
+        return { product_id, quantity, name, line_total };
+      });
+  }
+
+  function openConfirmModal(){
+    const items = getSelectedItems();
+    if(items.length === 0) return;
+
+    const tbody = $('#confirmItems');
+    tbody.innerHTML = '';
+    let sum = 0;
+
+    items.forEach(it => {
+      sum += it.line_total;
+      const tr = document.createElement('tr');
+      const td1 = document.createElement('td');
+      const td2 = document.createElement('td');
+      const td3 = document.createElement('td');
+      td1.textContent = it.name;
+      td2.textContent = it.quantity;
+      td2.style.textAlign = 'right';
+      td3.textContent = fmtVND(it.line_total) + '₫';
+      td3.style.textAlign = 'right';
+      tr.append(td1, td2, td3);
+      tbody.appendChild(tr);
+    });
+
+    $('#confirmTotal').textContent = fmtVND(sum);
+    $('#confirmModal').style.display = 'grid';
+    // cache trên element để submit
+    $('#confirmModal').dataset.payload = JSON.stringify(items.map(({product_id, quantity})=>({product_id, quantity})));
+  }
+
+  async function submitConfirmedOrder(){
+    const raw = $('#confirmModal').dataset.payload || '[]';
+    let items = [];
+    try { items = JSON.parse(raw); } catch(_){ items = []; }
+    if(items.length === 0){ $('#confirmModal').style.display = 'none'; return; }
+
+    const url = "{% url 'cart:checkout' %}";
+    const res = await fetch(url, {
+      method:'POST',
+      headers:{
+        'X-CSRFToken':getCookie('csrftoken'),
+        'X-Requested-With':'XMLHttpRequest',
+        'Content-Type':'application/json'
+      },
+      body: JSON.stringify({ items })
+    });
+    const data = await res.json();
+    if(data.ok && data.redirect_url){ location.href = data.redirect_url; }
+    else if(data.require_login && data.redirect){ location.href = data.redirect; }
+    else{ alert(data.message || 'Không thể tạo đơn hàng.'); }
+  }
+
+  // ===== Events =====
+  document.addEventListener('click', async (e)=>{
+    const btnQty = e.target.closest('.btn-qty');
+    if(btnQty){
+      const row = btnQty.closest('tr.cart-row');
+      const input = row.querySelector('.qty-input');
+      let cur = parseInt(input.value || '1', 10);
+      cur = btnQty.dataset.action === 'dec' ? Math.max(1, cur-1) : cur+1;
+      await updateQuantity(row, cur);
+      return;
+    }
+
+    const rm = e.target.closest('.btn-remove');
+    if(rm){
+      const row = rm.closest('tr.cart-row'); await removeItem(row); return;
+    }
+
+    const con = e.target.closest('.btn-consult');
+    if(con){
+      const row = con.closest('tr.cart-row');
+      const pname = row.querySelector('td a')?.textContent?.trim() || 'Sản phẩm';
+      $('#consultProductId').value = row.dataset.productId;
+      $('#consultProductLabel').textContent = pname;
+      const note = $('#consultNote');
+      if(note && !note.value) note.value = `Nhờ tư vấn thêm về "${pname}"`;
+      $('#consultModal').style.display = 'grid';
+      return;
+    }
+
+    if(e.target.id === 'confirmCancel'){ $('#confirmModal').style.display = 'none'; }
+    if(e.target.id === 'confirmSubmit'){ await submitConfirmedOrder(); }
+  });
+
+  document.addEventListener('change', async (e)=>{
+    if(e.target.classList.contains('qty-input')){
+      const row = e.target.closest('tr.cart-row');
+      let val = parseInt(e.target.value || '1', 10);
+      if(!Number.isFinite(val) || val < 1) val = 1;
+      await updateQuantity(row, val);
+    }
+    if(e.target.id === 'selectAll'){
+      const on = e.target.checked;
+      $$('.select-item').forEach(cb => cb.checked = on);
+      recomputeSelection();
+    }
+    if(e.target.classList.contains('select-item')){
+      recomputeSelection();
+    }
+  });
+
+  // Nút “Thanh toán mục đã chọn” → mở modal xác nhận
+  $('#btnCheckoutSelected')?.addEventListener('click', openConfirmModal);
+
+  // Đóng modal tư vấn
+  $('#consultCancel')?.addEventListener('click', ()=> $('#consultModal').style.display='none');
+
+  // Gửi yêu cầu tư vấn
+  $('#consultForm')?.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const url  = "{% url 'cart:consult_request' %}";
+    const res  = await fetch(url, {
+      method:'POST',
+      headers:{ 'X-CSRFToken':getCookie('csrftoken'), 'X-Requested-With':'XMLHttpRequest' },
+      body: form
+    });
+    const data = await res.json();
+    if(data.ok){
+      alert('Đã ghi nhận yêu cầu. Bộ phận tư vấn sẽ liên hệ sớm!');
+      $('#consultModal').style.display='none';
+      e.target.reset();
+    }else{
+      alert(data.message || 'Gửi yêu cầu thất bại.');
+    }
+  });
+
+  // Init
+  recomputeSelection();
+</script>
+{% endblock %}
